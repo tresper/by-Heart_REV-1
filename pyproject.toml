@@ -12,6 +12,10 @@ authors = [
 # loads corpus/manifest.yaml.
 dependencies = [
     "google-adk>=2.0.0,<3.0.0",
+    "gruut>=2.4.0",
+    "gruut-lang-en>=2.0.1",
+    "mcp>=1.24,<2",
+    "pronouncing>=0.3.0",
     "pyyaml>=6.0",
 ]
 requires-python = ">=3.11,<3.14"
