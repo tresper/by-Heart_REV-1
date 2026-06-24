@@ -45,3 +45,37 @@ files that Claude Code loads during development. They live in [`.claude/skills/`
 
 - [`provenance-gate`](.claude/skills/provenance-gate/SKILL.md) — enforces the public-domain
   corpus allowlist when adding poems and maintaining the provenance_gate node
+- [`stride-threat-model`](.claude/skills/stride-threat-model/SKILL.md) — the STRIDE threat
+  model for the two graphs: each category mapped to By Heart's concrete control and where it
+  lives in code
+
+## Security
+
+The attack surface is small **by design** (no accounts, no open-ended poem ingestion, no cloud
+deploy) and the controls are explicit and tested:
+
+- **Threat model.** [`stride-threat-model`](.claude/skills/stride-threat-model/SKILL.md) walks
+  each STRIDE category and names the control and its code location.
+- **Recall-input validation.** A learner's typed recall is the one untrusted input. It is
+  sanitized at a single choke point ([`app/security/recall_input.py`](app/security/recall_input.py))
+  before any model sees it — length-bounded, control/zero-width/bidi codepoints stripped,
+  newlines collapsed — while legitimate poetic tokens (`o'er`, `café`) survive.
+- **Prompt-injection containment is structural.** The Adjudicator and Coach are told the recall
+  is untrusted data, but the guarantee is that their output is a *validated proposal*: the grade
+  is clamped to the legal vocabulary and the crutch tag to cues that were actually visible. A
+  model fully swayed by an injected recall still cannot emit an illegal grade, fabricate a tag,
+  or over-escalate a hint.
+- **Minimal-PII + secrets hygiene.** Identity is an opaque `learner_id`; the free-text recall is
+  **never persisted** (the attempt record has no field for it). The Gemini key lives only in
+  `.env` (gitignored); `.env.example` ships placeholders.
+
+**Run the injection/PII eval** (blueprint DoD #5):
+
+```
+uv run python -m evals.injection_pii_eval
+```
+
+It prints a per-scenario PASS/FAIL table — injection containment, the input sanitizer, and
+PII-minimization — and exits non-zero on any failure. The deterministic checks need no API key;
+the live model scenarios run when a Gemini key is present. The same checks run under
+`uv run pytest`.
