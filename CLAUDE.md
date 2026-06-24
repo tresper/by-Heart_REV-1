@@ -40,8 +40,8 @@ Build in phase increments with recovery-friendly history (this is a one-submissi
 - **One short-lived branch per phase**, named `phase/NN-slug` (e.g. `phase/02-prosody-mcp`), branched from `main`.
 - **Merge to `main` with `--no-ff`** when the phase is green, so the phase boundary is a visible merge commit while the granular commits underneath stay intact for `git bisect`. Do **not** squash — it destroys the per-step history that troubleshooting relies on.
 - **Tag each green checkpoint** with an annotated tag matching the branch slug: `git tag -a phase-NN-slug -m "…"`. Tags are the recovery anchors — `git checkout phase-NN-…` for a known-good state; `git bisect` between two tags to localize a regression.
-- **Push after each phase:** `git push origin main` + the phase branch + `git push origin <tag>` (or `--tags`). The off-machine copy is the deadline insurance.
-- End-of-phase checklist: tests green → merge `--no-ff` to `main` → annotated tag → push `main` + tag → cut the next `phase/NN-slug`.
+- **Push after each phase — run by the human from their terminal.** `origin` is SSH, which works in the terminal; the assistant's sandboxed shell has no access to the SSH key, so the assistant prepares all commits/merges/tags locally and hands off the exact push line, e.g. `git push origin main && git push origin <phase-branch> && git push origin <tag>`. The off-machine copy is the deadline insurance.
+- End-of-phase checklist: tests green → merge `--no-ff` to `main` → annotated tag → **hand off the push line; human pushes** `main` + tag → cut the next `phase/NN-slug`.
 - History so far: phase 1 is tagged `phase-01-provenance-gate` on `main`; active branch is `phase/02-prosody-mcp`.
 
 ## Decision log (important)
