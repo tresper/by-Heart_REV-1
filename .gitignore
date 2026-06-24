@@ -221,9 +221,13 @@ __marimo__/
 # macOS Finder cruft (this repo is published; keep it clean).
 .DS_Store
 
-# Claude Code per-machine settings (permissions, local overrides). The shared
-# .claude/settings.json stays tracked; only the *.local.json variant is ignored.
-.claude/settings.local.json
+# Claude Code: keep authored skills + shared settings; ignore everything else
+# under .claude/ (per-machine settings.local.json, caches, history, local state).
+# Allowlist strategy so new local-state files are ignored by default. (.env is
+# already ignored above under "Environments".)
+.claude/*
+!.claude/skills/
+!.claude/settings.json
 
 # Local learner runtime state (attempts, mastery, sessions) must never be
 # committed. The pre-seeded public-domain corpus DB lives under corpus/ and is
