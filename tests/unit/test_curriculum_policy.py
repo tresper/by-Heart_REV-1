@@ -13,7 +13,12 @@ from __future__ import annotations
 import pathlib
 
 from app.curriculum.policy import is_metrically_regular, plan_course
-from app.curriculum.types import Course, line_tokens, render_masked_line
+from app.curriculum.types import (
+    AdaptationDirective,
+    Course,
+    line_tokens,
+    render_masked_line,
+)
 from app.prosody.analysis import analyze_poem, scan_line
 
 _DICKINSON = pathlib.Path(
@@ -92,11 +97,35 @@ def test_word_idx_round_trips_through_the_scanner() -> None:
         assert scan_line(line)["words"][m.word_idx]["word"] == m.word
 
 
-def test_history_param_is_accepted_but_inert() -> None:
-    """The §13.5 adaptive seam exists but does not yet change the schedule."""
-    with_history = plan_course(_MAP, _ANCHORS, _POEM_ID, history=object())
-    without = plan_course(_MAP, _ANCHORS, _POEM_ID, history=None)
-    assert with_history.to_dict() == without.to_dict()
+def test_adaptation_directive_strips_the_prioritized_crutch_sooner() -> None:
+    """The §13.5 overlay: prioritizing metrical_regularity pulls the anchor `grain`
+    from its base rung-3 session (2) into the rung-2 session (1) — stripped sooner."""
+    base = _course()
+    adapted = plan_course(
+        _MAP,
+        _ANCHORS,
+        _POEM_ID,
+        adaptation=AdaptationDirective(prioritized_crutch="metrical_regularity"),
+    )
+    assert "grain" not in _words(base.sessions[1])  # base: not until rung 3 (session 2)
+    assert "grain" in _words(adapted.sessions[1])  # adapted: now at rung 2 (session 1)
+
+
+def test_no_adaptation_reproduces_the_base_plan() -> None:
+    """Cold start (no directive) is byte-for-byte the §13.4 schedule."""
+    cold = plan_course(_MAP, _ANCHORS, _POEM_ID, adaptation=None)
+    assert cold.to_dict() == _course().to_dict()
+
+
+def test_none_crutch_directive_is_a_no_op() -> None:
+    """A directive naming no real crutch leaves the deterministic plan untouched."""
+    adapted = plan_course(
+        _MAP,
+        _ANCHORS,
+        _POEM_ID,
+        adaptation=AdaptationDirective(prioritized_crutch="none"),
+    )
+    assert adapted.to_dict() == _course().to_dict()
 
 
 def test_course_dict_round_trip() -> None:

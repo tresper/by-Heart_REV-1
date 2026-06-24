@@ -28,6 +28,39 @@ CrutchClass = Literal[
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z'\-]*")
 
 
+@dataclass(frozen=True)
+class AdaptationDirective:
+    """The adaptive overlay's single instruction to the deletion ladder (§4 step 4).
+
+    This is the *only* thing the LLM contributes to the schedule: which crutch class
+    the learner most leans on, so the policy strips it sooner. The phonetic ground
+    truth and the concrete masks stay deterministic — the directive merely re-orders
+    which cue goes first (blueprint §8: an LLM proposal the policy validates and
+    applies, never trusted to author masks itself). ``diagnosis`` is the LLM's short
+    reason; ``target_stanza`` optionally narrows the adaptation to one stanza when the
+    pattern is localized (``None`` = poem-wide).
+    """
+
+    prioritized_crutch: CrutchClass
+    diagnosis: str = ""
+    target_stanza: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prioritized_crutch": self.prioritized_crutch,
+            "diagnosis": self.diagnosis,
+            "target_stanza": self.target_stanza,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> AdaptationDirective:
+        return cls(
+            prioritized_crutch=d["prioritized_crutch"],
+            diagnosis=d.get("diagnosis", ""),
+            target_stanza=d.get("target_stanza"),
+        )
+
+
 def line_tokens(line: str) -> list[str]:
     """The alphabetic tokens of a line, in order (the maskable words)."""
     return _WORD_RE.findall(line)
