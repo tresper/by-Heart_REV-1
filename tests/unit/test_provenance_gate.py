@@ -84,3 +84,29 @@ def test_poem_after_1930_is_refused(tmp_path: Path) -> None:
 
     assert result.admitted is False
     assert "1930" in result.reason
+
+
+def test_real_seed_corpus_all_admit() -> None:
+    """Integration smoke test: every poem in the shipped manifest admits.
+
+    Guards the real corpus — each entry must have a valid year, an existing
+    text file, and a matching sha256. Skips cleanly until the texts are pasted.
+    """
+    from app.provenance import (
+        DEFAULT_CORPUS_ROOT,
+        DEFAULT_MANIFEST_PATH,
+        load_manifest,
+    )
+
+    manifest = load_manifest(DEFAULT_MANIFEST_PATH)
+    incomplete = [pid for pid, e in manifest.items() if "sha256" not in e]
+    if incomplete:
+        import pytest
+
+        pytest.skip(f"corpus texts not yet wired in: {incomplete}")
+
+    for poem_id in manifest:
+        result = evaluate_provenance(
+            poem_id, manifest=manifest, corpus_root=DEFAULT_CORPUS_ROOT
+        )
+        assert result.admitted is True, f"{poem_id} refused: {result.reason}"

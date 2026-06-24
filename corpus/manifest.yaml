@@ -14,7 +14,9 @@ poems:
     first_published: 1923
     source_url: "https://www.gutenberg.org/ebooks/58611"
     rights: public-domain-US
-    notes: "First published in the collection New Hampshire (1923); Gutenberg ebook 58611."
+    text_file: texts/frost-stopping-by-woods.txt
+    sha256: f46845b325148c39a0633fca17de8aae08a1f048edbd98456a2846a35c6c8330
+    notes: "First published in the collection New Hampshire (1923); Gutenberg ebook 58611. Body-only (title line omitted)."
 
   - id: dickinson-because-i-could-not-stop-for-death
     title: "Because I could not stop for Death"
@@ -22,9 +24,12 @@ poems:
     first_published: 1890
     source_url: "https://www.gutenberg.org/ebooks/12242"
     rights: public-domain-US
+    text_file: texts/dickinson-because-i-could-not-stop-for-death.txt
+    sha256: fe0a7bffeb75412b66c7b23b8be485c00555b76b0fb28d5eba11b6b8d9a914f7
     notes: >-
       Written c. 1863; first published (as 'The Chariot') in Poems by Emily
-      Dickinson, edited by Higginson and Todd, 1890.
+      Dickinson, edited by Higginson and Todd, 1890. Body-only; this is the
+      regularized 1890 5-stanza text (omits the 'Or rather, he passed us' stanza).
 
   - id: whitman-o-captain-my-captain
     title: "O Captain! My Captain!"
@@ -32,4 +37,6 @@ poems:
     first_published: 1865
     source_url: "https://www.gutenberg.org/ebooks/1322"
     rights: public-domain-US
-    notes: "First published in Sequel to Drum-Taps (1865); collected in Leaves of Grass."
+    text_file: texts/whitman-o-captain-my-captain.txt
+    sha256: 0b23da7e25a2aa335a2dc986ae446166c1a7aee031888293f1af2dc58b5e68f8
+    notes: "First published in Sequel to Drum-Taps (1865); collected in Leaves of Grass. Body-only; deathbed-edition text."
