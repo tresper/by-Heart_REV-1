@@ -245,3 +245,10 @@ __marimo__/
 *.sqlite3-journal
 *-wal
 *-shm
+
+# ADK / agents-cli runtime artifacts (playground sessions, generated scripts,
+# local CLI state). The committed project files are pyproject.toml, uv.lock,
+# agents-cli-manifest.yaml, app/, and tests/.
+.adk/
+.agents-cli-scripts/
+.google-agents-cli/

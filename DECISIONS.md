@@ -19,6 +19,20 @@
 
 ---
 
+## 2026-06-24 — ADK scaffold: agents-cli prototype, trimmed to a no-cloud core
+- Decision: scaffold with `agents-cli create -a adk --prototype` (per blueprint §13.1), then relocate the minimal project to the repo root and **trim** the generated `pyproject.toml` to `google-adk>=2.0.0,<3.0.0` + `pyyaml` (dropping the `[gcp]` extra and the `google-cloud-*` / `opentelemetry` / `gcsfs` deps). Kept `agents-cli-manifest.yaml` so the lifecycle commands (lint/eval/playground) still recognize the project. Build the two graphs with the real graph API — `google.adk.workflow` (`Workflow`, `@node`, `START`, routing-map edges) + `RequestInput` — **not** the `Agent`+`App` ReAct sample the template ships.
+- Why: the template targets Vertex AI / Cloud Run and pulls a heavy GCP stack the MVP doesn't use (blueprint §9: no cloud deploy). Trimming keeps a clean-clone setup small and avoids GCP-auth-at-import (the sample `agent.py` calls `google.auth.default()` on import). Crucially, the installed-package API was read on disk before writing any node code: confirmed **google-adk 2.3.0**, async-generator nodes taking `(ctx, node_input)`, conditional fan-out via `Event(output=..., route=...)`.
+- Alternatives considered: a fully hand-rolled `uv init` project (lighter, but skips the official scaffold and its eval wiring — and §13.1 explicitly says use agents-cli); keeping the template's `Agent`+`App` ReAct code (rejected — the project is two graph Workflows, not a single ReAct agent); assuming the ADK API from memory (rejected — verified against the installed 2.3.0 source instead).
+- Concept served: Agent / multi-agent (ADK) / Agent skills.
+- Shows in: code, writeup.
+
+## 2026-06-24 — Provenance gate: sha256 content integrity + pure, testable policy
+- Decision: split the gate into a pure synchronous policy (`app/provenance.py::evaluate_provenance`) and a thin async ADK node that wraps it. The policy fails closed through ordered checks: on the allowlist → `first_published <= 1930` → text file present → **sha256 of the file bytes matches the manifest's recorded `sha256`** (tamper detection) → admit. The manifest gains `text_file` + `sha256` per entry; canonical texts live in `corpus/texts/<id>.txt`. Refusals are logged to **stderr**, never stdout.
+- Why: separating policy from the node lets the public-domain guarantee be unit-tested without an ADK runtime or a model key (4 pytest cases: admit, unknown-id, tampered-text, post-1930). The sha256 check is the concrete answer to the prior entry's "a present-but-wrong source is the failure mode" — content is verified at gate time, not assumed. Stderr-only logging matches the MCP stdout-hygiene convention used elsewhere.
+- Alternatives considered: putting logic directly in the async node (rejected — forces an async/ADK harness into every test); trusting the file's presence without hashing (rejected — that is exactly the tamper/swap hole); a string-compare of the poem text (rejected — hashing is O(1) to store and compare, and is the standard integrity primitive).
+- Concept served: Security.
+- Shows in: code, writeup.
+
 ## 2026-06-24 — Seed corpus + source_url verification
 - Decision: seed `corpus/manifest.yaml` with three vetted entries — Frost, "Stopping by Woods on a Snowy Evening" (1923); Dickinson, "Because I could not stop for Death" (1890); Whitman, "O Captain! My Captain!" (1865) — each carrying `id`, `title`, `author`, `first_published`, `source_url`, `rights`. Every `source_url` was fetched and confirmed to resolve to the named work before commit.
 - Why: provenance is only real if the cited source actually holds the cited text. Verification caught a wrong link — the Frost `source_url` initially pointed at Gutenberg #58018, an unrelated 1817 religious tract; the correct *New Hampshire* (1923) collection is #58611. This is exactly the skill's "being on a website is not provenance" red flag, observed in practice.

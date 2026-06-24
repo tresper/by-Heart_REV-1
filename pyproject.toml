@@ -1,0 +1,66 @@
+[project]
+name = "by-heart"
+version = "0.1.0"
+description = "Agentic poetry-memorization tutor (Google ADK 2.0) — Kaggle capstone."
+authors = [
+    {name = "tresper", email = "dbailley@umich.edu"},
+]
+
+# Trimmed from the agents-cli `adk` template: the [gcp] extra and the
+# google-cloud / opentelemetry / gcsfs deps are dropped — the MVP has no cloud
+# deploy (blueprint §9). pyyaml is declared explicitly because provenance.py
+# loads corpus/manifest.yaml.
+dependencies = [
+    "google-adk>=2.0.0,<3.0.0",
+    "pyyaml>=6.0",
+]
+requires-python = ">=3.11,<3.14"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2,<10.0.0",
+    "pytest-asyncio>=1.0.0,<2.0.0",
+]
+
+[project.optional-dependencies]
+lint = [
+    "ruff>=0.4.6,<1.0.0",
+    "ty>=0.0.1a0",
+    "codespell>=2.2.0,<3.0.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "C", "B", "UP", "RUF"]
+ignore = ["E501", "C901", "B006"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+exclude = [".venv/**"]
+
+[tool.ty.rules]
+unresolved-import = "ignore"
+unresolved-attribute = "ignore"
+
+[tool.codespell]
+ignore-words-list = "rouge"
+skip = "uv.lock,.venv"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
