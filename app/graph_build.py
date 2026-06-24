@@ -35,8 +35,9 @@ from google.adk.workflow import START, Workflow, node
 from mcp import StdioServerParameters
 from pydantic import BaseModel
 
+from app.curriculum.memory import LearnerMemory, profile_from_attempts
 from app.curriculum.policy import plan_course
-from app.curriculum.types import Course
+from app.curriculum.types import AdaptationDirective, Course
 from app.models import gemini
 from app.prosody.analysis import analyze_poem
 from app.provenance import (
@@ -150,10 +151,50 @@ _rationale_agent = Agent(
         "`syntactic_momentum` (a function word the syntax auto-fills). For EACH "
         "session, in order, write ONE short Deletion Rationale (2-3 sentences) that "
         "names the crutch being stripped and why the learner was leaning on it, so "
-        "recall becomes more unaided. Do not invent words beyond those given. Return "
-        'JSON {"rationales": [...]} with exactly one rationale per session, in order.'
+        "recall becomes more unaided. If an `adaptation` block is present, the schedule "
+        "was PERSONALIZED to this learner — weave its diagnosis into the session where "
+        "that crutch is stripped (why we now remove the cue THIS learner leaned on). "
+        "Do not invent words beyond those given. Return JSON "
+        '{"rationales": [...]} with exactly one rationale per session, in order.'
     ),
     output_schema=Rationales,
+)
+
+
+class AdaptationProposal(BaseModel):
+    """The adaptive overlay's structured choice (§13.5) — the Architect's one decision.
+
+    A proposal, not the schedule: ``_validate_directive`` checks the named class is
+    actually present in this poem before the deterministic policy applies it (§8).
+    """
+
+    prioritized_crutch: str  # rhyme_partner | metrical_regularity | syntactic_momentum
+    diagnosis: str = ""
+    target_stanza: int | None = None
+
+
+# The adaptive Architect (§4 step 4 — the money shot): a focused Gemini node, no
+# tools. Invoked from ``curriculum_plan`` with the learner's crutch-dependence
+# profile, it CHOOSES which crutch to strip next — the reasoning a ``for`` loop can't
+# do (§2). Its choice is validated and applied deterministically; it never authors masks.
+_adaptive_planner = Agent(
+    name="adaptive_planner",
+    model=gemini(),
+    instruction=(
+        "You are the curriculum Architect adapting a poem's memorization schedule to "
+        "ONE learner. You are given their crutch-dependence profile: per crutch class, "
+        "`relied_on` (times they recalled a word correctly only because that cue was "
+        "still present) and `missed_at` (times they failed at that cue's words), plus "
+        "`dominant` (classes ranked by how much they lean on each). Choose the ONE "
+        "crutch class to strip next: the support this learner most leans on, so recall "
+        "becomes less aided. Prefer the dominant class; for a miss-heavy pattern target "
+        "where they repeatedly fail — do NOT merely re-queue exact misses. Return JSON "
+        "matching the schema: `prioritized_crutch` (exactly one of rhyme_partner, "
+        "metrical_regularity, syntactic_momentum), a short `diagnosis` naming the "
+        "pattern and why you strip that cue, and `target_stanza` (an integer) only if "
+        "the pattern is confined to one stanza, else null."
+    ),
+    output_schema=AdaptationProposal,
 )
 
 
@@ -182,8 +223,16 @@ def _resolve_anchors(node_input: Any, ctx, structural_map: dict[str, Any]) -> li
     return list(structural_map.get("anchor_candidates", []))
 
 
-def _rationale_payload(course: Course, structural_map: dict[str, Any]) -> dict[str, Any]:
-    """The compact, LLM-facing view of the schedule: what each session removes."""
+def _rationale_payload(
+    course: Course,
+    structural_map: dict[str, Any],
+    directive: AdaptationDirective | None = None,
+) -> dict[str, Any]:
+    """The compact, LLM-facing view of the schedule: what each session removes.
+
+    When the schedule was personalized (§13.5), the validated ``directive`` rides
+    along so the rationale can name *why this learner* gets that cue stripped now.
+    """
     sessions = []
     for s in course.sessions:
         removing = [
@@ -192,7 +241,40 @@ def _rationale_payload(course: Course, structural_map: dict[str, Any]) -> dict[s
             if m.rung == s.rung  # the words newly removed at this session's rung
         ]
         sessions.append({"session": s.index, "rung": s.rung, "removing": removing})
-    return {"poem_id": course.poem_id, "sessions": sessions}
+    payload: dict[str, Any] = {"poem_id": course.poem_id, "sessions": sessions}
+    if directive is not None:
+        payload["adaptation"] = {
+            "prioritized_crutch": directive.prioritized_crutch,
+            "diagnosis": directive.diagnosis,
+        }
+    return payload
+
+
+def _validate_directive(
+    raw: Any, present_classes: set[str]
+) -> AdaptationDirective | None:
+    """Accept the LLM's adaptation only if it names a crutch this poem actually has.
+
+    Blueprint §8: the model's choice is a proposal the policy validates, never trusted
+    raw. A class the poem doesn't exhibit — or a malformed reply — yields ``None``, so
+    the schedule falls back to the deterministic §13.4 base plan (fail safe).
+    """
+    if not isinstance(raw, dict):
+        return None
+    cls = raw.get("prioritized_crutch")
+    if cls not in present_classes:
+        return None
+    stanza = raw.get("target_stanza")
+    return AdaptationDirective(
+        prioritized_crutch=cls,
+        diagnosis=str(raw.get("diagnosis", "")).strip(),
+        target_stanza=stanza if isinstance(stanza, int) else None,
+    )
+
+
+def _resolve_learner_id(ctx) -> str:
+    """The opaque learner id for memory lookup (minimal-PII, §8); ``"demo"`` default."""
+    return str(ctx.state.get("learner_id") or "demo")
 
 
 def _attach_rationales(course: Course, raw: Any) -> Course:
@@ -216,11 +298,14 @@ def print_deletion_rationale(course: Course) -> None:
 
 @node(name="curriculum_plan", rerun_on_resume=True)
 async def curriculum_plan(ctx, node_input: Any):
-    """Apply the Crutch-Removal Policy, then have Gemini author the rationale (§13.4).
+    """Plan the crutch-removal schedule, adapt it to the learner, then author rationale.
 
-    The masking *schedule* is deterministic (re-derived on the admitted poem text +
-    the LLM's anchor words); the per-session *Deletion Rationale* is the LLM's
-    reasoning artifact. Emits the Course as a JSON-friendly dict.
+    Three layers, in blueprint order: (1) the deterministic Crutch-Removal Policy on
+    pristine ground truth + the LLM's anchor words (§13.4); (2) the §13.5 adaptive
+    overlay — if this learner has a history, Gemini CHOOSES which crutch to strip
+    sooner (validated, then applied deterministically); (3) the LLM Deletion Rationale,
+    now personalized. The masking schedule is deterministic at every step; only the
+    *choice* and the *prose* are model-generated. Emits the Course as a JSON dict.
     """
     poem_id = ctx.state.get("poem_id") or ""
     poem_text = ctx.state.get("poem_text") or ""
@@ -228,9 +313,31 @@ async def curriculum_plan(ctx, node_input: Any):
         analyze_poem(poem_text) if poem_text else {"stanzas": [], "anchor_candidates": []}
     )
     anchors = _resolve_anchors(node_input, ctx, structural_map)
-    course = plan_course(structural_map, anchors, poem_id)
+
+    # Layer 1: the deterministic base plan (and the crutch classes this poem exhibits).
+    base_course = plan_course(structural_map, anchors, poem_id)
+    present = {m.crutch_class for s in base_course.sessions for m in s.masks}
+
+    # Layer 2: the adaptive overlay (§13.5). Only when the learner's history shows a
+    # lean signal do we ask Gemini which crutch to strip sooner; validate, then re-plan.
+    learner_id = _resolve_learner_id(ctx)
+    profile = profile_from_attempts(
+        poem_id, LearnerMemory().attempts_for(learner_id, poem_id)
+    )
+    directive: AdaptationDirective | None = None
+    if profile.dominant:
+        proposal = await ctx.run_node(_adaptive_planner, node_input=profile.to_dict())
+        directive = _validate_directive(proposal, present)
+    course = (
+        plan_course(structural_map, anchors, poem_id, adaptation=directive)
+        if directive
+        else base_course
+    )
+
+    # Layer 3: the visible Deletion Rationale, personalized when an adaptation applied.
     raw = await ctx.run_node(
-        _rationale_agent, node_input=_rationale_payload(course, structural_map)
+        _rationale_agent,
+        node_input=_rationale_payload(course, structural_map, directive),
     )
     course = _attach_rationales(course, raw)
     print_deletion_rationale(course)
