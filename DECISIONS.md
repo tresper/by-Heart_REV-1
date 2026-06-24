@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-24 — Git hygiene: ignore runtime state, commit the seed corpus
+- Decision: extend `.gitignore` to drop `.DS_Store`, `.claude/settings.local.json`, all `*.db`/`*.sqlite`/`*.sqlite3` files and their transient sidecars (`-wal`, `-shm`, `-journal`) — but re-include `corpus/*.db|*.sqlite|*.sqlite3` so the pre-seeded public-domain corpus ships in-repo. Convention: committed corpus data lives under `corpus/`; learner runtime state (attempts, mastery, sessions) lives elsewhere and stays untracked.
+- Why: keeps secret-adjacent and machine-specific files out of a public repo, prevents accidental commits of learner attempt data, and guarantees the demo clones with data already present. The location-based exemption is more robust than per-file negation as the corpus grows.
+- Alternatives considered: blanket `*.db` ignore (would block the seed corpus); committing runtime state too (privacy noise, churn, and it's regenerable); relying on the user's global `~/.config/git/ignore` for `.claude/settings.local.json` (not portable to collaborators or CI on a public repo).
+- Concept served: Security.
+- Shows in: code.
+
 ## 2026-06-24 — Coding toolchain: Claude Code, used transparently
 - Decision: build with Claude Code (Opus 4.8 + Sonnet); the runtime stack stays Google (ADK 2.0 + Gemini).
 - Why: Claude Code is a recognized member of the `SKILL.md` agent-skills ecosystem the course teaches; an honest "Build" story scores better than obscuring the tool.

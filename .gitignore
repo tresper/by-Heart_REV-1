@@ -216,3 +216,28 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ── By Heart — project-specific ───────────────────────────────────────────────
+# macOS Finder cruft (this repo is published; keep it clean).
+.DS_Store
+
+# Claude Code per-machine settings (permissions, local overrides). The shared
+# .claude/settings.json stays tracked; only the *.local.json variant is ignored.
+.claude/settings.local.json
+
+# Local learner runtime state (attempts, mastery, sessions) must never be
+# committed. The pre-seeded public-domain corpus DB lives under corpus/ and is
+# re-included below so the demo ships with data.
+*.db
+*.sqlite
+*.sqlite3
+!corpus/*.db
+!corpus/*.sqlite
+!corpus/*.sqlite3
+
+# SQLite sidecar files are transient — never commit them, not even alongside
+# the seeded corpus DB.
+*.db-journal
+*.sqlite3-journal
+*-wal
+*-shm
