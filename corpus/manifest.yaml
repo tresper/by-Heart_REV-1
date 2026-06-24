@@ -1,0 +1,35 @@
+# By Heart — corpus manifest (public-domain allowlist)
+#
+# The provenance_gate node loads THIS file as the single source of truth.
+# A poem is eligible iff it has an entry here. Every entry must be a US work
+# first published in or before 1930, with a verifiable source. Fail closed:
+# anything not listed is refused. See .claude/skills/provenance-gate/SKILL.md.
+#
+# Required fields per entry: id, title, author, first_published, source_url, rights.
+
+poems:
+  - id: frost-stopping-by-woods
+    title: "Stopping by Woods on a Snowy Evening"
+    author: "Robert Frost"
+    first_published: 1923
+    source_url: "https://www.gutenberg.org/ebooks/58611"
+    rights: public-domain-US
+    notes: "First published in the collection New Hampshire (1923); Gutenberg ebook 58611."
+
+  - id: dickinson-because-i-could-not-stop-for-death
+    title: "Because I could not stop for Death"
+    author: "Emily Dickinson"
+    first_published: 1890
+    source_url: "https://www.gutenberg.org/ebooks/12242"
+    rights: public-domain-US
+    notes: >-
+      Written c. 1863; first published (as 'The Chariot') in Poems by Emily
+      Dickinson, edited by Higginson and Todd, 1890.
+
+  - id: whitman-o-captain-my-captain
+    title: "O Captain! My Captain!"
+    author: "Walt Whitman"
+    first_published: 1865
+    source_url: "https://www.gutenberg.org/ebooks/1322"
+    rights: public-domain-US
+    notes: "First published in Sequel to Drum-Taps (1865); collected in Leaves of Grass."

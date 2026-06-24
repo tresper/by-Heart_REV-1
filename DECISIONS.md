@@ -19,6 +19,14 @@
 
 ---
 
+## 2026-06-24 — Seed corpus + source_url verification
+- Decision: seed `corpus/manifest.yaml` with three vetted entries — Frost, "Stopping by Woods on a Snowy Evening" (1923); Dickinson, "Because I could not stop for Death" (1890); Whitman, "O Captain! My Captain!" (1865) — each carrying `id`, `title`, `author`, `first_published`, `source_url`, `rights`. Every `source_url` was fetched and confirmed to resolve to the named work before commit.
+- Why: provenance is only real if the cited source actually holds the cited text. Verification caught a wrong link — the Frost `source_url` initially pointed at Gutenberg #58018, an unrelated 1817 religious tract; the correct *New Hampshire* (1923) collection is #58611. This is exactly the skill's "being on a website is not provenance" red flag, observed in practice.
+- Implication for the gate: the `provenance_gate` node should validate that each `source_url` resolves to the named work, not merely that the field is populated. A present-but-wrong URL is the failure mode to guard against.
+- Alternatives considered: trusting plausible-looking Gutenberg IDs without fetching (rejected — that is what produced the bad Frost link); deferring all corpus content to the build phase (rejected — a seeded corpus lets the demo run end-to-end immediately).
+- Concept served: Security / Agent skills.
+- Shows in: code, writeup.
+
 ## 2026-06-24 — Git hygiene: ignore runtime state, commit the seed corpus
 - Decision: extend `.gitignore` to drop `.DS_Store`, `.claude/settings.local.json`, all `*.db`/`*.sqlite`/`*.sqlite3` files and their transient sidecars (`-wal`, `-shm`, `-journal`) — but re-include `corpus/*.db|*.sqlite|*.sqlite3` so the pre-seeded public-domain corpus ships in-repo. Convention: committed corpus data lives under `corpus/`; learner runtime state (attempts, mastery, sessions) lives elsewhere and stays untracked.
 - Why: keeps secret-adjacent and machine-specific files out of a public repo, prevents accidental commits of learner attempt data, and guarantees the demo clones with data already present. The location-based exemption is more robust than per-file negation as the corpus grows.
