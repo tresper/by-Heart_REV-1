@@ -36,8 +36,8 @@ def test_adk_mcp_toolset_connects_and_lists_tools() -> None:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("GOOGLE_API_KEY"),
-    reason="live LLM run requires GOOGLE_API_KEY in the environment",
+    not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")),
+    reason="live LLM run requires GOOGLE_API_KEY or GEMINI_API_KEY in the environment",
 )
 def test_prosody_analysis_live() -> None:
     """End-to-end: the agent reasons over the MCP tools to analyze a poem."""
