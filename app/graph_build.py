@@ -3,24 +3,28 @@
     [provenance_gate] --admit--> [prosody_analysis] --> [curriculum_plan] --> Course
             └-----------refuse----------> (halt)
 
-Only ``provenance_gate`` is implemented in this phase; ``prosody_analysis`` and
-``curriculum_plan`` are explicit stubs that pass their input through with a TODO
-marker so the graph constructs and is walkable without faking poem analysis.
+``provenance_gate`` (gate) and ``prosody_analysis`` (Gemini LLM agent grounded by
+the Prosody MCP) are implemented; ``curriculum_plan`` remains a stub (§13.4).
 
 API note (verified against installed google-adk 2.3.0): a workflow node is an
 async function taking ``(ctx, node_input)`` — a parameter literally named
 ``node_input`` receives the upstream node's output. A node emits a value and an
 optional route via ``Event(output=..., route=...)``; routing-map dicts on an
-edge select the next node by that route value.
+edge select the next node by that route value. An ``Agent`` is also a valid node.
 """
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
+from google.adk.agents import Agent
 from google.adk.events.event import Event
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from google.adk.workflow import START, Workflow, node
+from mcp import StdioServerParameters
 
+from app.models import gemini
 from app.provenance import (
     DEFAULT_CORPUS_ROOT,
     DEFAULT_MANIFEST_PATH,
@@ -45,11 +49,33 @@ async def provenance_gate(ctx, node_input: Any):
     yield Event(output=result, route="admit" if result.admitted else "refuse")
 
 
-@node(name="prosody_analysis")
-async def prosody_analysis(ctx, node_input: Any):
-    """STUB (§13.3). Will call the Prosody MCP for meter/stress, rhyme scheme,
-    the rhyme-partner map, and anchor words. For now: passthrough + TODO marker."""
-    yield Event(output={"todo": "prosody_analysis not implemented", "admitted": node_input})
+# prosody_analysis: a Gemini LLM node grounded by the Prosody MCP (§4/§5/§8).
+# It calls the MCP's deterministic tools (analyze_poem / scan_line / pronounce)
+# and reasons over that phonetic ground truth to emit the structural map +
+# anchor words. The toolset launches the local stdio server on demand; nothing
+# is spawned and no API key is needed at construction time (only when it runs).
+_prosody_toolset = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable, args=["-m", "app.prosody.server"]
+        ),
+        timeout=20.0,
+    ),
+)
+
+prosody_analysis = Agent(
+    name="prosody_analysis",
+    model=gemini(),
+    instruction=(
+        "You analyze a single public-domain poem's prosody. Call the prosody MCP "
+        "tools to get DETERMINISTIC ground truth — use `analyze_poem` on the full "
+        "poem text for the rhyme scheme, rhyme-partner map, slant rhymes, and "
+        "per-line stress. Never guess pronunciations; rely on the tools. Then emit "
+        "the structural map and identify the anchor words (the high-information "
+        "content words a learner leans on), explaining your choices briefly."
+    ),
+    tools=[_prosody_toolset],
+)
 
 
 @node(name="curriculum_plan")
