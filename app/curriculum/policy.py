@@ -15,16 +15,29 @@ masking a fixed ratio:
 Masks are cumulative across sessions; each is tagged with the crutch class it
 removes and the rung that introduced it. The prose Deletion Rationale is authored
 by the LLM node downstream; nothing here calls a model, so the schedule is a
-deterministic, unit-testable artifact (blueprint §8/§11). ``history`` is a typed
-seam for the §13.5 adaptive overlay (re-order which crutch is stripped next based
-on the learner's error patterns); it is accepted and documented but unused now.
+deterministic, unit-testable artifact (blueprint §8/§11).
+
+The §13.5 adaptive overlay attaches via the optional ``adaptation`` directive: when
+the learner's error pattern shows they lean on a particular crutch, the Architect
+(an LLM, upstream) asks the policy to strip that crutch *sooner*. The directive only
+re-orders existing masks (lowers their rung); it never authors masks, so the
+schedule stays deterministic and the phonetic ground truth is never trusted to the
+model. With no directive, ``plan_course`` is byte-for-byte its §13.4 self (cold start).
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
-from app.curriculum.types import Course, CrutchClass, MaskedSpan, SessionPlan, line_tokens
+from app.curriculum.types import (
+    AdaptationDirective,
+    Course,
+    CrutchClass,
+    MaskedSpan,
+    SessionPlan,
+    line_tokens,
+)
 from app.prosody.analysis import _STOPWORDS
 
 _N_RUNGS = 4
@@ -128,12 +141,38 @@ def _stanza_spans(
     return spans
 
 
+def _apply_adaptation(
+    introduced: dict[tuple[int, int, int], MaskedSpan],
+    adaptation: AdaptationDirective,
+) -> dict[tuple[int, int, int], MaskedSpan]:
+    """Re-order the ladder so the learner's most-relied-on crutch is stripped sooner.
+
+    The directive lowers the rung of every masked word of the prioritized class — so
+    it surfaces in an earlier session — bounded at rung 1 and optionally confined to
+    one stanza. It only re-orders existing masks; it never adds, drops, or
+    reclassifies a word, so the phonetic ground truth is untouched (blueprint §8). An
+    unmatched class (none present, or ``"none"``) is a no-op, leaving the base plan.
+    """
+    target = adaptation.prioritized_crutch
+    if target == "none":
+        return introduced
+    out: dict[tuple[int, int, int], MaskedSpan] = {}
+    for pos, span in introduced.items():
+        if span.crutch_class == target and (
+            adaptation.target_stanza is None
+            or span.stanza_idx == adaptation.target_stanza
+        ):
+            span = replace(span, rung=max(1, span.rung - 1))
+        out[pos] = span
+    return out
+
+
 def plan_course(
     structural_map: dict[str, Any],
     anchors: list[str],
     poem_id: str,
     *,
-    history: Any | None = None,  # SEAM for §13.5 adaptive overlay; unused now
+    adaptation: AdaptationDirective | None = None,
     n_sessions: int = _N_RUNGS,
 ) -> Course:
     """Build the multi-session crutch-removal Course for one poem.
@@ -143,6 +182,10 @@ def plan_course(
     standalone). When two rungs would mask the same word, the lower (earlier) rung
     wins, so a rhyme word stays tagged ``rhyme_partner`` rather than being relabeled
     when the near-whole-line rung sweeps everything.
+
+    ``adaptation`` is the §13.5 overlay: a validated LLM directive that pulls the
+    learner's most-relied-on crutch earlier in the schedule. ``None`` reproduces the
+    §13.4 plan exactly.
     """
     stanzas = structural_map.get("stanzas", [])
     anchor_set = {a.lower() for a in anchors}
@@ -154,6 +197,9 @@ def plan_course(
             pos = (span.stanza_idx, span.line_idx, span.word_idx)
             if pos not in introduced or span.rung < introduced[pos].rung:
                 introduced[pos] = span
+
+    if adaptation is not None:
+        introduced = _apply_adaptation(introduced, adaptation)
 
     sessions: list[SessionPlan] = []
     for k in range(n_sessions):
