@@ -35,7 +35,7 @@ from google.adk.workflow import START, Workflow, node
 from mcp import StdioServerParameters
 from pydantic import BaseModel
 
-from app.curriculum.memory import LearnerMemory, profile_from_attempts
+from app.curriculum.memory import LearnerMemory, profile_from_attempts, save_course
 from app.curriculum.policy import plan_course
 from app.curriculum.types import AdaptationDirective, Course
 from app.models import gemini
@@ -341,6 +341,9 @@ async def curriculum_plan(ctx, node_input: Any):
     )
     course = _attach_rationales(course, raw)
     print_deletion_rationale(course)
+    # The §4 "Course ──► Session/Memory store" edge: persist this learner's adapted
+    # course so Graph B (the Recall Loop) can present exactly what was planned here.
+    save_course(course, learner_id)
     yield Event(output=course.to_dict())
 
 

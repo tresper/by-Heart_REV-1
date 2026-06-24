@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, get_args
 
-from app.curriculum.types import CrutchClass
+from app.curriculum.types import Course, CrutchClass
 
 # The crutch classes that name a *real* cue to strip (everything but "none"), in a
 # stable tie-break order. Ranking and aggregation ignore "none": there is no support
@@ -218,8 +218,43 @@ def profile_from_attempts(poem_id: str, attempts: list[Attempt]) -> CrutchProfil
     )
 
 
+def _state_dir() -> Path:
+    """The runtime state dir: ``$BY_HEART_STATE_DIR`` if set, else the gitignored ``var/``."""
+    base = os.environ.get("BY_HEART_STATE_DIR")
+    return Path(base) if base else _DEFAULT_STATE_DIR
+
+
 def _default_store_path() -> Path:
     """``$BY_HEART_STATE_DIR/learner_memory.json``, else under the gitignored ``var/``."""
-    base = os.environ.get("BY_HEART_STATE_DIR")
-    root = Path(base) if base else _DEFAULT_STATE_DIR
-    return root / _STORE_FILENAME
+    return _state_dir() / _STORE_FILENAME
+
+
+# The Course store — the §4 "Course object ──► Session/Memory store" seam. Graph A
+# (``curriculum_plan``) persists the per-learner adapted Course here; Graph B
+# (``present_masked_line``) loads it to know what to mask. The course IS per-learner
+# (the §13.5 overlay personalizes it), so it is keyed by ``(poem_id, learner_id)``.
+# Same gitignored runtime dir and atomic write as ``LearnerMemory``; a missing file
+# reads as "no course yet" (None), so Graph B never errors before Graph A has run.
+def _course_store_path(poem_id: str, learner_id: str) -> Path:
+    safe = lambda s: "".join(c if c.isalnum() or c in "-_" else "_" for c in s)
+    return _state_dir() / f"course_{safe(poem_id)}_{safe(learner_id)}.json"
+
+
+def save_course(course: Course, learner_id: str, path: Path | None = None) -> None:
+    """Persist one learner's adapted Course as JSON (atomic temp + replace)."""
+    dest = Path(path) if path is not None else _course_store_path(course.poem_id, learner_id)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(course.to_dict(), indent=2, ensure_ascii=False)
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, dest)
+
+
+def load_course(poem_id: str, learner_id: str, path: Path | None = None) -> Course | None:
+    """Load a learner's persisted Course, or ``None`` if none has been built yet."""
+    src = Path(path) if path is not None else _course_store_path(poem_id, learner_id)
+    try:
+        raw = src.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    return Course.from_dict(json.loads(raw)) if raw.strip() else None
