@@ -34,6 +34,16 @@ Key behaviors:
 - Write tests for the deletion policy and the adjudicator; run `agents-cli` lint and the injection/PII eval before each commit milestone.
 - Keep `README.md` current: problem, solution, the two-graph architecture, setup, and run-the-demo steps.
 
+## Git workflow
+Build in phase increments with recovery-friendly history (this is a one-submission deadline — keep `main` clean and everything backed up off-machine).
+- **`main` is the always-green trunk.** Work never lands on `main` unless its tests pass; a fresh clone of `main` must run. `main` is the recovery baseline.
+- **One short-lived branch per phase**, named `phase/NN-slug` (e.g. `phase/02-prosody-mcp`), branched from `main`.
+- **Merge to `main` with `--no-ff`** when the phase is green, so the phase boundary is a visible merge commit while the granular commits underneath stay intact for `git bisect`. Do **not** squash — it destroys the per-step history that troubleshooting relies on.
+- **Tag each green checkpoint** with an annotated tag matching the branch slug: `git tag -a phase-NN-slug -m "…"`. Tags are the recovery anchors — `git checkout phase-NN-…` for a known-good state; `git bisect` between two tags to localize a regression.
+- **Push after each phase:** `git push origin main` + the phase branch + `git push origin <tag>` (or `--tags`). The off-machine copy is the deadline insurance.
+- End-of-phase checklist: tests green → merge `--no-ff` to `main` → annotated tag → push `main` + tag → cut the next `phase/NN-slug`.
+- History so far: phase 1 is tagged `phase-01-provenance-gate` on `main`; active branch is `phase/02-prosody-mcp`.
+
 ## Decision log (important)
 After any non-trivial design, architecture, security, or dependency decision, **append a dated entry to `DECISIONS.md`**: what was decided, why, the alternatives considered, the capstone concept it serves (ADK / MCP / Skills / Security), and where it will show (code / video / writeup). This is the raw material for the Writeup's "Journey & key decisions" section. Keep it factual and publishable — the repo will be public.
 
