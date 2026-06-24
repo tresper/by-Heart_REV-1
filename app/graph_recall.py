@@ -25,7 +25,12 @@ from google.adk.workflow import START, Workflow, node
 @node(name="present_masked_line")
 async def present_masked_line(ctx, node_input: Any):
     """STUB. Will present the line with crutch-removal masking applied, then
-    pause for the learner's recall. Yields ``RequestInput`` (human-in-the-loop)."""
+    pause for the learner's recall. Yields ``RequestInput`` (human-in-the-loop).
+
+    When wired (§13.6) this renders a ``SessionPlan`` from the Course via
+    ``app.curriculum.types.render_masked_line`` — masks land on words by the shared
+    token-index contract — so the Build graph's schedule drives what the learner sees.
+    """
     yield RequestInput(message="Recall the masked line:")
 
 
