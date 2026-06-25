@@ -49,31 +49,33 @@ from app.provenance import evaluate_provenance, load_manifest
 from evals.injection_pii_eval import run as run_security_eval
 
 APP_NAME = "by-heart"
-DEMO_POEM_ID = "dickinson-because-i-could-not-stop-for-death"
+DEMO_POEM_ID = "frost-stopping-by-woods"
 # A real but in-copyright poem: NOT on the allowlist, so the gate refuses it — the
 # copyright guarantee and the allowlist input-validation control, in one line (§8).
 NON_CORPUS_POEM_ID = "plath-daddy"
 
 # The scripted recall session, designed to produce a falsifiable money shot for the
-# Dickinson anchor. Each entry pins an exact masked word (stanza, line, word index) and
-# the rung/session it belongs to, so the demo is deterministic across takes.
+# Frost anchor. Each entry pins an exact masked word (stanza, line, word index) and the
+# rung/session it belongs to, so the demo is deterministic across takes.
 #
-# The story: this learner aces a word the *visible rhyme partner* hands them (a clean
-# `crutch_dependence=rhyme_partner` tag), but keeps *near-missing* the words the poem's
-# meter carries. The Adjudicator can't attribute a correctly-known content word to
-# "rhythm" — so meter dependence is read from the MISS pattern (the word's deterministic
-# crutch_class), exactly as blueprint §4 step 4 specifies. That meter-weakness pattern is
-# what makes the re-plan strip metrical regularity *sooner* — a visibly different schedule.
+# The story: this learner aces a word the *visible rhyme partner* hands them — Frost's
+# strong "know/though/snow" rhyme reliably earns a clean `crutch_dependence=rhyme_partner`
+# tag — but keeps *near-missing* the words the poem's meter carries. The Adjudicator can't
+# attribute a correctly-known content word to "rhythm", so meter dependence is read from
+# the MISS pattern (the word's deterministic `crutch_class`), exactly as blueprint §4 step
+# 4 specifies. That meter-weakness pattern is what makes the re-plan strip metrical
+# regularity *sooner* — a visibly different schedule. (Frost's strong end-rhymes tag
+# reliably where Dickinson's slant rhymes leave the grader honestly undecided.)
 _RHYME_HIT = {
     "label": "rhyme word, partner visible",
-    "session_index": 0,  # rung 1: the rhyme partner is still on the page
-    "target": (0, 3, 1),  # "Immortality"
+    "session_index": 0,  # rung 1: the rhyme partner ("know") is still on the page
+    "target": (0, 1, 6),  # "though" — rhymes with the visible "know"
     "answer": None,  # recalled correctly → hit, leaning on the visible rhyme
 }
 _METER_SLIPS = [
-    {"label": "meter-carried word, slips", "session_index": 2, "target": (0, 0, 6), "answer": "dying"},   # Death
-    {"label": "meter-carried word, slips", "session_index": 2, "target": (2, 0, 3), "answer": "church"},  # school
-    {"label": "meter-carried word, slips", "session_index": 2, "target": (1, 2, 1), "answer": "leisure"}, # labor
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (0, 1, 1), "answer": "barn"},    # house
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (1, 0, 2), "answer": "donkey"},  # horse
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (1, 2, 5), "answer": "river"},   # lake
 ]
 # ADK's human-in-the-loop request_input function-call name. On resume, the framework
 # matches our FunctionResponse back to the paused node by its interrupt id (see

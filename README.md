@@ -170,10 +170,10 @@ the live model scenarios run when a Gemini key is present. The same checks run u
 uvx google-agents-cli playground
 ```
 
-Select `build_pipeline` and enter a poem id — a corpus id such as
-`dickinson-because-i-could-not-stop-for-death` builds a Course (watch the Deletion Rationale on
-stderr); any other id is refused by the gate. The full recall + re-plan loop seeds session state
-and feeds the `RequestInput` pauses, which the one-command runner above does for you.
+Select `build_pipeline` and enter a poem id — a corpus id such as `frost-stopping-by-woods`
+builds a Course (watch the Deletion Rationale on stderr); any other id is refused by the gate. The
+full recall + re-plan loop seeds session state and feeds the `RequestInput` pauses, which the
+one-command runner above does for you.
 
 ### Corpus
 

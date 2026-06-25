@@ -54,22 +54,23 @@ Drive this from the one-command runner; narrate over its streaming `[n/5]` block
   Narration: "Only vetted public-domain poems get in — a modern, in-copyright poem is refused at
   the gate. That's the copyright guarantee *and* an input-validation control."
 - **2:25–3:05 · build the course (`[2/5]`).** On screen: the four-session **Deletion Rationale**
-  streaming for Dickinson's "Because I could not stop for Death." Narration: "The agents read the
+  streaming for Frost's "Stopping by Woods on a Snowy Evening." Narration: "The agents read the
   rhyme-partner map and meter, then plan four sessions — strip rhyme partners first, then meter,
   then the syntactic glue — and **explain each step in plain language**. Show the reasoning, not
   just the masking."
 - **3:05–3:40 · recall, the crutch tag, and a near-miss (`[3/5]`).** On screen: the scripted
-  attempts — `recalled 'Immortality' → hit, crutch=rhyme_partner`, then `'Death'→'dying' →
-  near_miss`, `'school'→'church' → miss`, `'labor'→'leisure' → near_miss`, closing on
+  attempts — `recalled 'though' → hit, crutch=rhyme_partner`, then `'house'→'barn' → near_miss`,
+  `'horse'→'donkey' → near_miss`, `'lake'→'river' → near_miss`, closing on
   `diagnosed crutch pattern: ['metrical_regularity', 'rhyme_partner']`. Narration: "When the rhyme
-  partner is visible, the learner nails it — and the Adjudicator *names* that crutch. But on the
-  words the **meter** carries, they keep slipping — `dying` for `Death`, `church` for `school`. It
-  grades each by meaning, not string match, and diagnoses where this learner actually leans."
+  partner is visible — Frost's `know`/`though`/`snow` — the learner nails it, and the Adjudicator
+  *names* that crutch: `rhyme_partner`. But on the words the **meter** carries, they keep slipping —
+  `barn` for `house`, `donkey` for `horse`. It grades each by meaning, not string match, and
+  diagnoses where this learner actually leans."
 - **3:40–4:00 · the money shot (`[4/5]`).** On screen: the schedule comparison —
   `metrical_regularity  base=session 2  adapted=session 1 ← pulled earlier` — and the re-planned
-  rationale: *"This session strips metrical regularity, which has been diagnosed as this learner's
-  dominant crutch. Because the learner has failed repeatedly at metrical cues … removing these
-  rhythmic scaffolding elements forces them to overcome this specific block."* Narration: "So the
+  rationale: *"This session removes the metrical_regularity crutch, which our diagnosis shows this
+  learner has struggled with heavily over several missed attempts … stripping this dominant cue
+  challenges the learner to actively reconstruct the poem's internal structure."* Narration: "So the
   course **rewrites itself for this learner**: metrical-regularity removal, originally session
   three, is pulled forward to session one — a different schedule, because the agent diagnosed a
   different weakness. Show the reasoning, not the masking."

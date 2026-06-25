@@ -25,4 +25,4 @@ def test_main_exits_zero_on_the_key_free_spine(monkeypatch) -> None:
     """No key → steps 2-4 are skipped, steps 1 and 5 run, and the runner still exits 0."""
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    assert demo.main(["--poem-id", "dickinson-because-i-could-not-stop-for-death"]) == 0
+    assert demo.main(["--poem-id", "frost-stopping-by-woods"]) == 0
