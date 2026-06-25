@@ -85,10 +85,40 @@ def test_structured_stanza_flags_the_target_blank() -> None:
     assert lines is not None and len(lines) == 2
     blanks = [s for s in lines[0] if s["t"] == "blank"]
     assert len(blanks) == 1 and blanks[0]["target"] is True and blanks[0]["len"] == 4
+    # Each blank carries its position so the page can keep already-solved words filled in.
+    assert blanks[0]["stanza_idx"] == 0 and blanks[0]["line_idx"] == 0 and blanks[0]["word_idx"] == 7
     text0 = "".join(s["v"] for s in lines[0] if s["t"] == "text")
     assert "know" not in text0                       # the answer is never sent as text
     text1 = "".join(s["v"] for s in lines[1] if s["t"] == "text")
     assert "though" in text1                          # unmasked line stays fully visible
+
+
+def test_reveal_after_miss_discloses_only_on_request() -> None:
+    """The answer is held server-side and only surfaced by the explicit reveal action; the
+    consumed pause is cleared on grading but the context survives so a miss can be retried
+    or revealed."""
+    from by_heart_web.drive import reveal_recall
+    from by_heart_web.sessions import create_web_session
+
+    ws = create_web_session("reveal-learner")
+    assert reveal_recall(ws)["ok"] is False           # nothing presented yet
+
+    ws.target_context = {"word": "though", "stanza_idx": 0, "line_idx": 1, "word_idx": 6}
+    ws.adk_session_id, ws.interrupt_id = "adk-1", "int-1"
+
+    # Grading consumes the pause but must KEEP the context (so retry/reveal still work).
+    ws.clear_pause()
+    assert ws.adk_session_id is None and ws.interrupt_id is None
+    assert ws.target_context is not None
+
+    revealed = reveal_recall(ws)
+    assert revealed["ok"] is True
+    assert revealed["revealed_word"] == "though"
+    assert revealed["target"] == {"stanza_idx": 0, "line_idx": 1, "word_idx": 6}
+
+    # A full reset (new word) drops the context entirely.
+    ws.clear_recall()
+    assert ws.target_context is None and reveal_recall(ws)["ok"] is False
 
 
 # --- endpoint checks (skip if httpx/TestClient unavailable) -----------------
