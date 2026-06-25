@@ -26,7 +26,9 @@ agents themselves — built as a two-graph **Google ADK 2.0** multi-agent system
 > **New to agentic systems?** For a narrative, concept-by-concept walkthrough — with one-line
 > definitions of ADK, MCP, Gemini, nodes, graphs, and conditional routing as they come up — read
 > **[How By Heart uses an agentic workflow](docs/HOW_THIS_APP_USES_AGENTIC_WORKFLOW.md)**. The
-> sections below are the terse reference version.
+> sections below are the terse reference version. For how the project itself was built with an AI
+> coding assistant — phases, recovery-friendly git, TDD, a living decision log, and multi-agent
+> review — see **[How this app was built](docs/HOW_THIS_APP_WAS_BUILT.md)**.
 
 **Build Pipeline (Graph A)** — runs once per poem:
 `provenance_gate` (admits only allowlisted public-domain poems) → `prosody_analysis`
