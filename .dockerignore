@@ -1,0 +1,19 @@
+# Build context hygiene for web/Dockerfile (built from the repo root).
+# Keep the image lean and — critically — keep .env (the Gemini key) OUT of the image.
+.git
+.venv
+**/.venv
+var
+.env
+*.env
+!.env.example
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.egg-info
+dist
+build
+node_modules
+.DS_Store

@@ -1,0 +1,40 @@
+[project]
+name = "by-heart-web"
+version = "0.1.0"
+description = "FastAPI web trainer + live graph visualization over the By Heart ADK graphs."
+requires-python = ">=3.11,<3.14"
+
+# This is a SEPARATE, deployable unit. It depends on the existing `by-heart` package by
+# reference (uv workspace), so it drives the REAL graphs — never a fork. The web/GCP deps
+# live here, NOT in the deliberately-trimmed root manifest (blueprint §9).
+dependencies = [
+    "by-heart",                          # the existing package, via the uv workspace
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+    "google-adk>=2.0.0,<3.0.0",          # same pin as root; ADK is the graph runtime
+    # Declared for GCP/Vertex portability (Cloud Run, Vertex AI Search/embeddings, model
+    # management). The MVP imports nothing from it — google-genai already reaches Vertex
+    # via env vars — but it is shipped so the deploy target is one config flip away.
+    "google-cloud-aiplatform>=1.60.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2,<10.0.0",
+    "pytest-asyncio>=1.0.0,<2.0.0",
+    "httpx>=0.27",                       # FastAPI TestClient transport
+]
+
+[tool.uv.sources]
+by-heart = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["by_heart_web"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+asyncio_default_fixture_loop_scope = "function"

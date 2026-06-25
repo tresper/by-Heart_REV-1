@@ -20,6 +20,13 @@ dependencies = [
 ]
 requires-python = ">=3.11,<3.14"
 
+# This repo is a uv workspace: the deployable web service (web/) is a member that
+# path-depends on this `by-heart` package, so the web trainer drives the REAL graphs
+# without forking. This is metadata only — no dependency or behavior of this root
+# project changes, and `uv run python -m app.demo` / the existing tests are unaffected.
+[tool.uv.workspace]
+members = ["web"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2,<10.0.0",
