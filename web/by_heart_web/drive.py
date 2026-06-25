@@ -11,6 +11,7 @@ its node transitions to the open SSE stream.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 from google.adk.runners import Runner
@@ -21,9 +22,10 @@ from app.curriculum.memory import (
     load_course,
     profile_from_attempts,
 )
-from app.curriculum.types import Course
+from app.curriculum.types import _WORD_RE, Course
 from app.graph_build import build_pipeline
 from app.graph_recall import recall_session
+from app.prosody.analysis import analyze_poem
 from app.provenance import evaluate_provenance, load_manifest
 from app.security.recall_input import sanitize_recall
 
@@ -109,6 +111,61 @@ def session_targets(course: Course, session_index: int) -> list[dict[str, Any]]:
         }
         for m in newly
     ]
+
+
+@lru_cache(maxsize=8)
+def _analyzed(poem_text: str) -> dict[str, Any]:
+    """Cache the (pure, key-free) prosody structural map per poem — the recall graph
+    rebuilds it each pause, so caching here avoids re-scanning for every quizzed word."""
+    return analyze_poem(poem_text)
+
+
+def _structured_stanza(
+    poem_text: str, course: Course, target_ctx: dict[str, Any]
+) -> list[list[dict[str, Any]]] | None:
+    """The presented stanza as per-line segments, with the ONE quizzed blank flagged.
+
+    Mirrors ``render_masked_line`` exactly (same ``_WORD_RE``, same session masks) but
+    emits structure instead of a flat string, so the page can highlight the *specific*
+    target blank among the stanza's other blanks and fill it in on a correct recall. Each
+    segment is ``{"t": "text", "v": str}`` or ``{"t": "blank", "len": int, "target": bool}``.
+    The answer word is never included — only its length sizes the blank.
+    """
+    try:
+        sx = int(target_ctx["stanza_idx"])
+        tline = int(target_ctx["line_idx"])
+        twi = int(target_ctx["word_idx"])
+        si = int(target_ctx.get("session_index", 0))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not course.sessions:
+        return None
+    stanza = next(
+        (s for s in _analyzed(poem_text).get("stanzas", []) if s.get("index") == sx), None
+    )
+    if stanza is None:
+        return None
+    si = max(0, min(si, len(course.sessions) - 1))
+    masked = {
+        (m.line_idx, m.word_idx) for m in course.sessions[si].masks if m.stanza_idx == sx
+    }
+    lines_out: list[list[dict[str, Any]]] = []
+    for li, line in enumerate(stanza.get("lines", [])):
+        segs: list[dict[str, Any]] = []
+        last = 0
+        for i, mo in enumerate(_WORD_RE.finditer(line)):
+            if mo.start() > last:
+                segs.append({"t": "text", "v": line[last:mo.start()]})
+            token = mo.group()
+            if (li, i) in masked:
+                segs.append({"t": "blank", "len": len(token), "target": li == tline and i == twi})
+            else:
+                segs.append({"t": "text", "v": token})
+            last = mo.end()
+        if last < len(line):
+            segs.append({"t": "text", "v": line[last:]})
+        lines_out.append(segs)
+    return lines_out
 
 
 # ---------------------------------------------------------------------------
@@ -233,11 +290,15 @@ async def start_recall(
     ws.poem_id = poem_id
     ws.target_context = context
 
+    course = load_course(poem_id, ws.learner_id)
+    stanza_lines = _structured_stanza(admitted.text, course, context) if course is not None else None
+
     word = str(context.get("word", ""))
     return {
         "ok": True,
         "rendered_stanza": context.get("rendered_stanza", ""),
         "rendered_line": context.get("rendered_line", ""),
+        "stanza_lines": stanza_lines,
         "available_cues": context.get("available_cues", []),
         "crutch_class": context.get("crutch_class", "none"),
         "word_len": len(word),
@@ -292,12 +353,18 @@ async def resume_recall(ws: WebSession, recall_text: str) -> dict[str, Any]:
     outcome = recorded.get("outcome", "miss")
     advanced = outcome in ("hit", "variant")
 
+    # Reveal the poem's word ONLY once the learner has earned it (a success) — so the
+    # page can fill the blank in green. On a miss the word stays server-side (the answer
+    # isn't given away, and a future retry isn't spoiled).
+    revealed = str((ws.target_context or {}).get("word", "")) if advanced else None
+
     ws.clear_recall()
     return {
         "ok": True,
         "outcome": outcome,
         "crutch_dependence": recorded.get("crutch_dependence", "none"),
         "advanced": advanced,
+        "revealed_word": revealed,
         "hint": hint,
         "hint_level": hint_level,
     }

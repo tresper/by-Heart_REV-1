@@ -67,6 +67,30 @@ def test_node_transition_envelope() -> None:
     assert viz._node_transition(types.SimpleNamespace(node_info=None)) is None
 
 
+def test_structured_stanza_flags_the_target_blank() -> None:
+    """The structured stanza marks exactly the quizzed blank, sizes it to the hidden word,
+    and never emits the answer word as text (it stays server-side until earned)."""
+    from by_heart_web.drive import _structured_stanza
+
+    from app.curriculum.types import Course, MaskedSpan, SessionPlan
+
+    poem = "Whose woods these are I think I know.\nHis house is in the village though;"
+    course = Course(
+        poem_id="t", stanza_count=1,
+        sessions=(SessionPlan(index=0, rung=1,
+                  masks=(MaskedSpan(0, 0, 7, "know", "rhyme_partner", 1),)),),
+    )
+    ctx = {"stanza_idx": 0, "line_idx": 0, "word_idx": 7, "session_index": 0}
+    lines = _structured_stanza(poem, course, ctx)
+    assert lines is not None and len(lines) == 2
+    blanks = [s for s in lines[0] if s["t"] == "blank"]
+    assert len(blanks) == 1 and blanks[0]["target"] is True and blanks[0]["len"] == 4
+    text0 = "".join(s["v"] for s in lines[0] if s["t"] == "text")
+    assert "know" not in text0                       # the answer is never sent as text
+    text1 = "".join(s["v"] for s in lines[1] if s["t"] == "text")
+    assert "though" in text1                          # unmasked line stays fully visible
+
+
 # --- endpoint checks (skip if httpx/TestClient unavailable) -----------------
 
 @pytest.fixture
