@@ -52,11 +52,14 @@ let currentSessionIndex = 0;
 let currentTargets = [];
 let currentTargetIdx = 0;
 let currentTargetBlank = null;   // the DOM <span> for the blank currently being quizzed
+let solvedWords = {};            // "stanza:line:word" -> {word, earned} — kept filled across re-renders
+let currentHintLevel = 0;        // strongest scaffold hint reached on this word (climbs on each retry)
 let prevFirstStrip = null;   // {crutch: sessionIndex} from the previous build (for the re-plan diff)
 let hasBuilt = false;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const keyOf = (t) => `${t.stanza_idx}:${t.line_idx}:${t.word_idx}`;
 
 // ---------------------------------------------------------------------------
 // Bootstrap
@@ -323,18 +326,33 @@ function renderStanza(stanzaLines) {
   currentTargetBlank = null;
   stanzaLines.forEach((segs, li) => {
     segs.forEach((s) => {
-      if (s.t === "text") {
-        pv.appendChild(document.createTextNode(s.v));
-      } else {
-        const span = document.createElement("span");
-        span.className = "blank" + (s.target ? " target" : "");
+      if (s.t === "text") { pv.appendChild(document.createTextNode(s.v)); return; }
+      const span = document.createElement("span");
+      const solved = s.stanza_idx != null
+        ? solvedWords[`${s.stanza_idx}:${s.line_idx}:${s.word_idx}`] : null;
+      if (s.target) {
+        // the blank being quizzed right now — pulsing, awaiting recall
+        span.className = "blank target";
         span.textContent = "_".repeat(Math.max(1, s.len));
-        if (s.target) { span.id = "target-blank"; currentTargetBlank = span; }
-        pv.appendChild(span);
+        span.id = "target-blank";
+        currentTargetBlank = span;
+      } else if (solved) {
+        // a word already earned (green) or revealed (amber) — keep it filled in
+        span.className = "blank " + (solved.earned ? "correct" : "revealed");
+        span.textContent = solved.word;
+      } else {
+        span.className = "blank";
+        span.textContent = "_".repeat(Math.max(1, s.len));
       }
+      pv.appendChild(span);
     });
     if (li < stanzaLines.length - 1) pv.appendChild(document.createTextNode("\n"));
   });
+}
+
+function setRecallEnabled(on) {
+  $("recall-input").disabled = !on;
+  $("btn-submit").disabled = !on;
 }
 
 async function startSession() {
@@ -342,6 +360,8 @@ async function startSession() {
   const targets = (window.__targets || {})[currentSessionIndex] || [];
   currentTargets = targets;
   currentTargetIdx = 0;
+  solvedWords = {};        // fresh slate of earned/revealed words for this run-through
+  currentHintLevel = 0;
   $("session-done").classList.add("hidden");
   if (!currentTargets.length) {
     $("recall").classList.remove("hidden");
@@ -355,8 +375,9 @@ async function startSession() {
 async function startTarget() {
   clearGraph("recall");
   $("result").innerHTML = "";
-  $("btn-next").classList.add("hidden");
+  ["btn-next", "btn-retry", "btn-reveal"].forEach((id) => $(id).classList.add("hidden"));
   $("waiting").classList.add("hidden");
+  setRecallEnabled(true);
   const t = currentTargets[currentTargetIdx];
 
   const res = await fetch("/api/recall/start", {
@@ -364,6 +385,8 @@ async function startTarget() {
     body: JSON.stringify({
       web_session_id: WSID, poem_id: POEM_ID, session_index: currentSessionIndex,
       target: { stanza_idx: t.stanza_idx, line_idx: t.line_idx, word_idx: t.word_idx },
+      // climbs across retries of the same word so the scaffold ladder escalates 1→2→3
+      prior_hint_level: currentHintLevel,
     }),
   }).then((r) => r.json());
 
@@ -389,6 +412,7 @@ async function startTarget() {
 }
 
 async function submitRecall() {
+  if ($("btn-submit").disabled) return;   // this pause is spent — use Try again / Reveal
   const input = $("recall-input");
   $("waiting").classList.add("hidden");
   document.querySelectorAll("#svg-recall .node").forEach((n) => n.classList.remove("waiting"));
@@ -402,6 +426,8 @@ async function submitRecall() {
     $("result").textContent = res.reason || "could not grade";
     return;
   }
+  setRecallEnabled(false);   // the RequestInput pause is consumed; next move is a button
+  const t = currentTargets[currentTargetIdx];
 
   // Fill the quizzed blank: green with the poem's word on a success, a red flash on a miss.
   if (currentTargetBlank) {
@@ -426,16 +452,55 @@ async function submitRecall() {
   }
   $("result").innerHTML = html;
 
-  if (currentTargetIdx + 1 < currentTargets.length) {
-    $("btn-next").classList.remove("hidden");
+  if (res.advanced) {
+    // Earned — keep it filled green across re-renders, reset the ladder, offer the next word.
+    if (res.revealed_word) solvedWords[keyOf(t)] = { word: res.revealed_word, earned: true };
+    currentHintLevel = 0;
+    if (currentTargetIdx + 1 < currentTargets.length) $("btn-next").classList.remove("hidden");
+    else $("session-done").classList.remove("hidden");
   } else {
-    $("session-done").classList.remove("hidden");
+    // Missed — let them try again (the scaffold hint climbs) or give up and reveal it.
+    currentHintLevel = res.hint_level || currentHintLevel;
+    $("btn-retry").classList.remove("hidden");
+    $("btn-reveal").classList.remove("hidden");
   }
 }
 
+// Re-present the SAME word. currentHintLevel is preserved, so the Scaffolding Coach climbs
+// the cue-withdrawal ladder (level 1 rhyme → 2 first letter → 3 gloss) on each retry.
+function tryAgain() {
+  startTarget();
+}
+
+// The explicit "I give up": disclose the word (held server-side until now), fill the blank
+// in its distinct revealed style, keep it visible, and move on to the next word.
+async function revealAndContinue() {
+  const res = await fetch("/api/recall/reveal", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ web_session_id: WSID, recall: "" }),
+  }).then((r) => r.json());
+
+  const t = currentTargets[currentTargetIdx];
+  if (res.ok && res.revealed_word && currentTargetBlank) {
+    currentTargetBlank.classList.remove("target", "wrong");
+    currentTargetBlank.textContent = res.revealed_word;
+    currentTargetBlank.classList.add("revealed");
+    solvedWords[keyOf(t)] = { word: res.revealed_word, earned: false };
+  }
+  ["btn-retry", "btn-reveal"].forEach((id) => $(id).classList.add("hidden"));
+  nextWord();
+}
+
 function nextWord() {
+  currentHintLevel = 0;            // a fresh word starts the scaffold ladder over
   currentTargetIdx += 1;
-  if (currentTargetIdx < currentTargets.length) startTarget();
+  if (currentTargetIdx < currentTargets.length) {
+    startTarget();
+  } else {
+    // No more words: leave the stanza as-is (solved/revealed words stay filled) and finish.
+    ["btn-next", "btn-retry", "btn-reveal"].forEach((id) => $(id).classList.add("hidden"));
+    $("session-done").classList.remove("hidden");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +512,8 @@ function wireButtons() {
   $("btn-start").addEventListener("click", startSession);
   $("btn-submit").addEventListener("click", submitRecall);
   $("btn-next").addEventListener("click", nextWord);
+  $("btn-retry").addEventListener("click", tryAgain);
+  $("btn-reveal").addEventListener("click", revealAndContinue);
   $("recall-input").addEventListener("keydown", (e) => { if (e.key === "Enter") submitRecall(); });
 }
 

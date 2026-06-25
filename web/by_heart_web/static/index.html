@@ -51,6 +51,9 @@
                    background: rgba(84,209,140,.12); font-weight: 650; animation: none; }
   .blank.wrong { color: var(--bad); border-bottom: 2px solid var(--bad);
                  background: rgba(255,122,122,.12); animation: shake .35s; }
+  /* a word the learner gave up on and revealed — visible, but distinct from earned green */
+  .blank.revealed { color: var(--warn); border-bottom: 2px dashed var(--warn);
+                    background: rgba(255,207,107,.10); font-weight: 600; animation: none; }
   @keyframes shake { 0%,100% { transform: translateX(0); }
                      25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
   input[type=text] {
@@ -142,6 +145,8 @@
       </div>
       <div id="result" style="margin-top:12px;"></div>
       <div class="row" style="margin-top:10px;">
+        <button id="btn-retry" class="hidden">Try again</button>
+        <button id="btn-reveal" class="secondary hidden">Reveal &amp; skip →</button>
         <button id="btn-next" class="secondary hidden">Next word →</button>
         <span id="session-done" class="muted small hidden">Session complete — try “Re-plan from my pattern”.</span>
       </div>
