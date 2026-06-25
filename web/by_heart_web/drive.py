@@ -1,0 +1,336 @@
+"""Thin async driver over the two existing ADK graphs.
+
+Every function here imports and drives the *real* graphs by reference
+(``app.graph_build.build_pipeline`` / ``app.graph_recall.recall_session``) using the
+same ``Runner`` + ``RequestInput`` pause/resume mechanics ``app/demo.py`` established —
+it adds no behavior the graphs don't already have. It does NOT import ``app.demo`` (the
+CLI runner stays untouched); it re-expresses that pattern for a long-running, per-request
+web server, with the web session's ``NodeTransitionPlugin`` attached so each run streams
+its node transitions to the open SSE stream.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from google.adk.runners import Runner
+from google.genai import types
+
+from app.curriculum.memory import (
+    LearnerMemory,
+    load_course,
+    profile_from_attempts,
+)
+from app.curriculum.types import Course
+from app.graph_build import build_pipeline
+from app.graph_recall import recall_session
+from app.provenance import evaluate_provenance, load_manifest
+from app.security.recall_input import sanitize_recall
+
+from .sessions import SESSION_SERVICE, WebSession
+
+APP_NAME = "by-heart"
+# ADK's human-in-the-loop request_input function-call name; the resume FunctionResponse
+# is matched back to the paused node by this name + the interrupt id (see app/demo.py).
+_REQUEST_INPUT_FC = "adk_request_input"
+
+
+# ---------------------------------------------------------------------------
+# Message + resume helpers (mirror app/demo.py:94-119).
+# ---------------------------------------------------------------------------
+
+def _user_message(text: str) -> types.Content:
+    return types.Content(role="user", parts=[types.Part.from_text(text=text)])
+
+
+def _recall_resume(interrupt_id: str, recall: str) -> types.Content:
+    """A FunctionResponse that resumes the paused recall node with the learner's text."""
+    return types.Content(
+        role="user",
+        parts=[
+            types.Part(
+                function_response=types.FunctionResponse(
+                    id=interrupt_id, name=_REQUEST_INPUT_FC, response={"recall": recall}
+                )
+            )
+        ],
+    )
+
+
+def _event_output(event: Any) -> Any:
+    return getattr(event, "output", None)
+
+
+# ---------------------------------------------------------------------------
+# Course shaping for the UI (no answer words ever leave the server).
+# ---------------------------------------------------------------------------
+
+def _course_summary(course: Course) -> dict[str, Any]:
+    """The Course as the page shows it: per-session rung, rationale, and mask counts.
+
+    The Deletion Rationale (the §4 visible reasoning artifact) is surfaced verbatim; the
+    actual masked *words* are never included — only counts — so the answers stay server-side.
+    """
+    return {
+        "poem_id": course.poem_id,
+        "stanza_count": course.stanza_count,
+        "rungs_used": list(course.rungs_used),
+        "sessions": [
+            {
+                "index": s.index,
+                "rung": s.rung,
+                "rationale": s.rationale,
+                "mask_count": len(s.masks),
+                "new_masks": sum(1 for m in s.masks if m.rung == s.rung),
+            }
+            for s in course.sessions
+        ],
+    }
+
+
+def session_targets(course: Course, session_index: int) -> list[dict[str, Any]]:
+    """The words this session newly asks the learner to recall (positions + lengths only).
+
+    Matches ``present_masked_line``'s target pool: the masks introduced at this session's
+    rung. Only the word *length* is exposed (to size the blank), never the word itself.
+    """
+    if not course.sessions:
+        return []
+    session_index = max(0, min(session_index, len(course.sessions) - 1))
+    session = course.sessions[session_index]
+    newly = [m for m in session.masks if m.rung == session.rung] or list(session.masks)
+    return [
+        {
+            "stanza_idx": m.stanza_idx,
+            "line_idx": m.line_idx,
+            "word_idx": m.word_idx,
+            "word_len": len(m.word),
+            "crutch_class": m.crutch_class,
+        }
+        for m in newly
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Graph A — build the Course (live, on demand).
+# ---------------------------------------------------------------------------
+
+async def run_build(ws: WebSession, poem_id: str) -> dict[str, Any]:
+    """Drive the Build Pipeline once, streaming node transitions, and return the Course.
+
+    The provenance gate runs inside the graph (so a non-corpus poem lights up
+    ``provenance_gate → refuse`` live and key-free). An admitted poem then needs a Gemini
+    key for ``prosody_analysis`` (Prosody MCP) and ``curriculum_plan``; if the key is
+    missing the run raises, which we report as a friendly notice rather than a crash.
+    """
+    ws.plugin.graph = "build"
+    admitted = evaluate_provenance(poem_id, manifest=load_manifest())
+
+    session = await SESSION_SERVICE.create_session(
+        app_name=APP_NAME, user_id=ws.learner_id, state={"learner_id": ws.learner_id}
+    )
+    runner = Runner(
+        agent=build_pipeline,
+        session_service=SESSION_SERVICE,
+        app_name=APP_NAME,
+        plugins=[ws.plugin],
+    )
+    error: str | None = None
+    try:
+        async for _ in runner.run_async(
+            user_id=ws.learner_id, session_id=session.id, new_message=_user_message(poem_id)
+        ):
+            pass
+    except Exception as exc:  # surfaced to the UI, not swallowed silently
+        error = f"{type(exc).__name__}: {exc}"
+
+    course = load_course(poem_id, ws.learner_id)
+    if course is None:
+        return {
+            "ok": False,
+            "admitted": admitted.admitted,
+            "reason": admitted.reason,
+            "error": error,
+            "needs_key": admitted.admitted and error is not None,
+            "course": None,
+        }
+    return {
+        "ok": True,
+        "admitted": True,
+        "reason": admitted.reason,
+        "error": None,
+        "needs_key": False,
+        "course": _course_summary(course),
+    }
+
+
+def load_course_summary(poem_id: str, learner_id: str) -> dict[str, Any] | None:
+    course = load_course(poem_id, learner_id)
+    return _course_summary(course) if course is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Graph B — present a masked word (run to the RequestInput pause).
+# ---------------------------------------------------------------------------
+
+async def start_recall(
+    ws: WebSession,
+    poem_id: str,
+    session_index: int,
+    target: dict[str, int] | None,
+) -> dict[str, Any]:
+    """Seed Graph B, run to the ``present_masked_line`` pause, and return the masked view.
+
+    Stashes the paused ADK ``session_id`` + ``interrupt_id`` + the presented
+    ``target_context`` on the web session so ``resume_recall`` can finish the attempt on
+    the next request. The target word's surface form never leaves the server — only the
+    underscore-blanked stanza/line and the word length do.
+    """
+    ws.plugin.graph = "recall"
+    admitted = evaluate_provenance(poem_id, manifest=load_manifest())
+    if not admitted.admitted or not admitted.text:
+        return {"ok": False, "reason": admitted.reason}
+
+    state: dict[str, Any] = {
+        "poem_id": poem_id,
+        "poem_text": admitted.text,
+        "learner_id": ws.learner_id,
+        "session_index": session_index,
+    }
+    if target is not None:
+        state["target"] = {
+            "stanza_idx": int(target["stanza_idx"]),
+            "line_idx": int(target["line_idx"]),
+            "word_idx": int(target["word_idx"]),
+        }
+
+    session = await SESSION_SERVICE.create_session(
+        app_name=APP_NAME, user_id=ws.learner_id, state=state
+    )
+    runner = Runner(
+        agent=recall_session,
+        session_service=SESSION_SERVICE,
+        app_name=APP_NAME,
+        plugins=[ws.plugin],
+    )
+    interrupt_id: str | None = None
+    async for event in runner.run_async(
+        user_id=ws.learner_id, session_id=session.id, new_message=_user_message(poem_id)
+    ):
+        ids = getattr(event, "long_running_tool_ids", None)
+        if ids:
+            interrupt_id = next(iter(ids))
+    if interrupt_id is None:
+        return {"ok": False, "reason": "no masked word was presented (build the course first)"}
+
+    live = await SESSION_SERVICE.get_session(
+        app_name=APP_NAME, user_id=ws.learner_id, session_id=session.id
+    )
+    context = (live.state or {}).get("target_context") or {}
+
+    ws.adk_session_id = session.id
+    ws.interrupt_id = interrupt_id
+    ws.poem_id = poem_id
+    ws.target_context = context
+
+    word = str(context.get("word", ""))
+    return {
+        "ok": True,
+        "rendered_stanza": context.get("rendered_stanza", ""),
+        "rendered_line": context.get("rendered_line", ""),
+        "available_cues": context.get("available_cues", []),
+        "crutch_class": context.get("crutch_class", "none"),
+        "word_len": len(word),
+        "target": {
+            "stanza_idx": context.get("stanza_idx"),
+            "line_idx": context.get("line_idx"),
+            "word_idx": context.get("word_idx"),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Graph B — grade a typed recall (resume the paused node).
+# ---------------------------------------------------------------------------
+
+async def resume_recall(ws: WebSession, recall_text: str) -> dict[str, Any]:
+    """Sanitize the typed recall, resume the paused node, and return the graded result.
+
+    The recall is the one untrusted input: it passes ``sanitize_recall`` here, at the web
+    boundary, *before* it enters the FunctionResponse and reaches any model (the graph
+    sanitizes again internally — defense in depth). The authoritative outcome + crutch tag
+    are read back from the LearnerMemory store (as ``app/demo.py`` does); any scaffold hint
+    is lifted from the terminal ``memory_update`` event.
+    """
+    if not ws.adk_session_id or not ws.interrupt_id or ws.poem_id is None:
+        return {"ok": False, "reason": "no recall is awaiting an answer"}
+
+    clean = sanitize_recall(recall_text)
+    runner = Runner(
+        agent=recall_session,
+        session_service=SESSION_SERVICE,
+        app_name=APP_NAME,
+        plugins=[ws.plugin],
+    )
+    hint: str | None = None
+    hint_level: int | None = None
+    async for event in runner.run_async(
+        user_id=ws.learner_id,
+        session_id=ws.adk_session_id,
+        new_message=_recall_resume(ws.interrupt_id, clean),
+    ):
+        ni = getattr(event, "node_info", None)
+        if ni is not None and getattr(ni, "name", None) == "memory_update":
+            out = _event_output(event)
+            inner = out.get("outcome") if isinstance(out, dict) else None
+            if isinstance(inner, dict) and "hint" in inner:
+                hint = inner.get("hint")
+                hint_level = inner.get("hint_level")
+
+    attempts = LearnerMemory().attempts_for(ws.learner_id, ws.poem_id)
+    recorded = attempts[-1].to_dict() if attempts else {}
+    outcome = recorded.get("outcome", "miss")
+    advanced = outcome in ("hit", "variant")
+
+    ws.clear_recall()
+    return {
+        "ok": True,
+        "outcome": outcome,
+        "crutch_dependence": recorded.get("crutch_dependence", "none"),
+        "advanced": advanced,
+        "hint": hint,
+        "hint_level": hint_level,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Learner memory + the adaptive profile (the re-plan signal).
+# ---------------------------------------------------------------------------
+
+def memory_snapshot(poem_id: str, learner_id: str) -> dict[str, Any]:
+    """Recorded attempts + the diagnosed crutch profile that re-plans the next course."""
+    attempts = LearnerMemory().attempts_for(learner_id, poem_id)
+    profile = profile_from_attempts(poem_id, attempts)
+    return {
+        "attempts": [
+            {
+                "session_index": a.session_index,
+                "word_len": len(a.word),
+                "crutch_class": a.crutch_class,
+                "outcome": a.outcome,
+                "crutch_dependence": a.crutch_dependence,
+            }
+            for a in attempts
+        ],
+        "profile": {
+            "dominant": profile.dominant,
+            "by_class": profile.by_class,
+            "total_attempts": profile.total_attempts,
+        },
+    }
+
+
+def provenance_check(poem_id: str) -> dict[str, Any]:
+    """Key-free gate check (used by the refusal demo + the smoke test)."""
+    result = evaluate_provenance(poem_id, manifest=load_manifest())
+    return {"poem_id": poem_id, "admitted": result.admitted, "reason": result.reason}
