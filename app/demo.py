@@ -34,11 +34,13 @@ import asyncio
 import json
 import os
 import sys
+from typing import Any
 
 from app.curriculum.memory import (
     LearnerMemory,
     _course_store_path,
     _default_store_path,
+    profile_from_attempts,
 )
 from app.curriculum.types import Course
 from app.graph_build import build_pipeline
@@ -51,9 +53,28 @@ DEMO_POEM_ID = "dickinson-because-i-could-not-stop-for-death"
 # A real but in-copyright poem: NOT on the allowlist, so the gate refuses it — the
 # copyright guarantee and the allowlist input-validation control, in one line (§8).
 NON_CORPUS_POEM_ID = "plath-daddy"
-# How many recall attempts to play before re-planning — enough for a lean pattern to
-# dominate the learner's crutch profile so the adaptive overlay has something to act on.
-PATTERN_ATTEMPTS = 3
+
+# The scripted recall session, designed to produce a falsifiable money shot for the
+# Dickinson anchor. Each entry pins an exact masked word (stanza, line, word index) and
+# the rung/session it belongs to, so the demo is deterministic across takes.
+#
+# The story: this learner aces a word the *visible rhyme partner* hands them (a clean
+# `crutch_dependence=rhyme_partner` tag), but keeps *near-missing* the words the poem's
+# meter carries. The Adjudicator can't attribute a correctly-known content word to
+# "rhythm" — so meter dependence is read from the MISS pattern (the word's deterministic
+# crutch_class), exactly as blueprint §4 step 4 specifies. That meter-weakness pattern is
+# what makes the re-plan strip metrical regularity *sooner* — a visibly different schedule.
+_RHYME_HIT = {
+    "label": "rhyme word, partner visible",
+    "session_index": 0,  # rung 1: the rhyme partner is still on the page
+    "target": (0, 3, 1),  # "Immortality"
+    "answer": None,  # recalled correctly → hit, leaning on the visible rhyme
+}
+_METER_SLIPS = [
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (0, 0, 6), "answer": "dying"},   # Death
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (2, 0, 3), "answer": "church"},  # school
+    {"label": "meter-carried word, slips", "session_index": 2, "target": (1, 2, 1), "answer": "leisure"}, # labor
+]
 # ADK's human-in-the-loop request_input function-call name. On resume, the framework
 # matches our FunctionResponse back to the paused node by its interrupt id (see
 # google.adk.workflow.utils._workflow_hitl_utils.create_request_input_event).
@@ -153,20 +174,37 @@ async def step2_build(session_service, poem_id: str, learner_id: str) -> Course 
     return loaded
 
 
-async def _run_recall(session_service, poem_id: str, poem_text: str, learner_id: str) -> dict:
-    """Drive one Graph B attempt: seed state, present, feed the recall, return the record.
+async def _run_recall(
+    session_service,
+    poem_id: str,
+    poem_text: str,
+    learner_id: str,
+    *,
+    session_index: int = 0,
+    target: tuple[int, int, int] | None = None,
+    answer: str | None = None,
+) -> dict:
+    """Drive one Graph B attempt: seed state, present a chosen word, feed a recall.
 
-    The harness reads the word the graph selected to mask (from the presented
-    ``target_context``) and feeds it back — simulating a learner who recalls correctly
-    and so leans on whatever cue is still visible. That lean is exactly what the
-    Adjudicator tags and the next plan removes.
+    ``session_index``/``target`` pin exactly which masked word is quizzed (so the demo
+    is deterministic). ``answer`` is the learner's typed recall; ``None`` means "recall
+    it correctly" (the harness reads the masked word from the presented context and
+    feeds it back). A wrong ``answer`` simulates a stumble the Adjudicator grades. The
+    graded result is read from the Learner Memory store — the authoritative §13.5 record.
     """
     from google.adk.runners import Runner
 
+    state: dict[str, Any] = {
+        "poem_id": poem_id,
+        "poem_text": poem_text,
+        "learner_id": learner_id,
+        "session_index": session_index,
+    }
+    if target is not None:
+        sx, lx, wx = target
+        state["target"] = {"stanza_idx": sx, "line_idx": lx, "word_idx": wx}
     session = await session_service.create_session(
-        app_name=APP_NAME,
-        user_id=learner_id,
-        state={"poem_id": poem_id, "poem_text": poem_text, "learner_id": learner_id},
+        app_name=APP_NAME, user_id=learner_id, state=state
     )
     runner = Runner(agent=recall_session, session_service=session_service, app_name=APP_NAME)
 
@@ -184,7 +222,8 @@ async def _run_recall(session_service, poem_id: str, poem_text: str, learner_id:
         app_name=APP_NAME, user_id=learner_id, session_id=session.id
     )
     context = (live.state or {}).get("target_context") or {}
-    recall = str(context.get("word", ""))
+    presented = str(context.get("word", ""))
+    recall = presented if answer is None else answer
 
     async for _ in runner.run_async(
         user_id=learner_id,
@@ -192,34 +231,51 @@ async def _run_recall(session_service, poem_id: str, poem_text: str, learner_id:
         new_message=_recall_resume(interrupt_id, recall),
     ):
         pass
-    # The authoritative record is what memory_update persisted (§13.5) — read it back
-    # rather than re-parsing the event stream.
     attempts = LearnerMemory().attempts_for(learner_id, poem_id)
     recorded = attempts[-1].to_dict() if attempts else {}
     recorded["_recall"] = recall
+    recorded["_presented"] = presented
     return recorded
 
 
+def _first_strip_session(course: Course) -> dict[str, int]:
+    """The earliest session that strips each crutch class (masks are cumulative)."""
+    first: dict[str, int] = {}
+    for s in course.sessions:
+        for m in s.masks:
+            if m.crutch_class != "none" and m.crutch_class not in first:
+                first[m.crutch_class] = s.index
+    return first
+
+
 async def step3_recall(session_service, poem_id: str, poem_text: str, learner_id: str) -> bool:
-    """[3/5] Play several recalls; each is graded semantically + tagged with its crutch."""
-    print("[3/5] Recall session — semantic grade + crutch-dependence tag")
+    """[3/5] Play a scripted session: grade each recall, surface the crutch tag + pattern."""
+    print("[3/5] Recall session — semantic grading + crutch-dependence tag")
+    print("    sampling this learner's recalls across the course:")
     any_recorded = False
-    for i in range(PATTERN_ATTEMPTS):
-        rec = await _run_recall(session_service, poem_id, poem_text, learner_id)
+    for play in (_RHYME_HIT, *_METER_SLIPS):
+        rec = await _run_recall(
+            session_service, poem_id, poem_text, learner_id,
+            session_index=play["session_index"], target=play["target"], answer=play["answer"],
+        )
         if not rec:
-            print(f"    attempt {i + 1}: nothing presented (no Course/key?)")
+            print(f"    {play['label']}: nothing presented (no Course/key?)")
             continue
         any_recorded = True
+        presented, said = rec.get("_presented"), rec.get("_recall")
+        shown = f"recalled {said!r}" if said == presented else f"saw {presented!r}, answered {said!r}"
         print(
-            f"    attempt {i + 1}: recalled {rec.get('_recall')!r} → "
-            f"outcome={rec.get('outcome')}, crutch={rec.get('crutch_dependence')}"
+            f"    {play['label']:28} {shown} → outcome={rec.get('outcome')}, "
+            f"crutch={rec.get('crutch_dependence')}"
         )
+    profile = profile_from_attempts(poem_id, LearnerMemory().attempts_for(learner_id, poem_id))
+    print(f"    → diagnosed crutch pattern (strongest signal first): {profile.dominant or ['none']}")
     print()
     return any_recorded
 
 
 async def step4_replan(session_service, poem_id: str, learner_id: str, base: Course | None) -> bool:
-    """[4/5] Re-plan for the same learner; the schedule now strips a DIFFERENT crutch."""
+    """[4/5] Re-plan for the same learner; the schedule now strips a DIFFERENT crutch sooner."""
     print("[4/5] Adaptive re-plan — strip the crutch this learner leans on (the money shot)")
     await _run_build(session_service, poem_id, learner_id)
     path = _course_store_path(poem_id, learner_id)
@@ -227,13 +283,15 @@ async def step4_replan(session_service, poem_id: str, learner_id: str, base: Cou
     if adapted is None:
         print("    FAIL — no adapted Course was persisted\n")
         return False
+    if base is not None:
+        base_at, adapted_at = _first_strip_session(base), _first_strip_session(adapted)
+        print("    crutch-removal schedule — first session that strips each crutch:")
+        for crutch in ("rhyme_partner", "metrical_regularity", "syntactic_momentum"):
+            b, a = base_at.get(crutch), adapted_at.get(crutch)
+            moved = " ← pulled earlier" if (b is not None and a is not None and a < b) else ""
+            print(f"      {crutch:21} base=session {b}   adapted=session {a}{moved}")
     print("    re-planned Deletion Rationale (personalized to the recorded pattern):")
     _print_rationale(adapted)
-    if base is not None:
-        changed = [s.index for s in adapted.sessions
-                   if s.index < len(base.sessions) and s.rationale != base.sessions[s.index].rationale]
-        print(f"    rationale changed for session(s): {changed or 'none'} "
-              "— the plan adapted to this learner")
     print()
     return True
 

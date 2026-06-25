@@ -58,16 +58,21 @@ Drive this from the one-command runner; narrate over its streaming `[n/5]` block
   rhyme-partner map and meter, then plan four sessions — strip rhyme partners first, then meter,
   then the syntactic glue — and **explain each step in plain language**. Show the reasoning, not
   just the masking."
-- **3:05–3:35 · recall + the crutch tag (`[3/5]`).** On screen: the recall attempts —
-  `recalled 'Immortality' → outcome=hit, crutch=rhyme_partner`. Narration: "The learner recalls
-  the line — and the Adjudicator notices the win leaned on the *visible rhyme partner*. It grades
-  by meaning and tags the crutch."
-- **3:35–4:00 · the money shot (`[4/5]`).** On screen: the **re-planned** Deletion Rationale —
-  *"…to address your diagnosed reliance exclusively on rhyme partners for successful recall.
-  Removing this dominant crutch forces you to retrieve these line endings independently…"* — plus
-  the `rationale changed for session(s): [0, 1, 2, 3]` line. Narration: "Next session, the plan is
-  **different for this learner**: it strips the rhyme cue they were leaning on, first — and even
-  inserts a consolidation session. The course adapted itself."
+- **3:05–3:40 · recall, the crutch tag, and a near-miss (`[3/5]`).** On screen: the scripted
+  attempts — `recalled 'Immortality' → hit, crutch=rhyme_partner`, then `'Death'→'dying' →
+  near_miss`, `'school'→'church' → miss`, `'labor'→'leisure' → near_miss`, closing on
+  `diagnosed crutch pattern: ['metrical_regularity', 'rhyme_partner']`. Narration: "When the rhyme
+  partner is visible, the learner nails it — and the Adjudicator *names* that crutch. But on the
+  words the **meter** carries, they keep slipping — `dying` for `Death`, `church` for `school`. It
+  grades each by meaning, not string match, and diagnoses where this learner actually leans."
+- **3:40–4:00 · the money shot (`[4/5]`).** On screen: the schedule comparison —
+  `metrical_regularity  base=session 2  adapted=session 1 ← pulled earlier` — and the re-planned
+  rationale: *"This session strips metrical regularity, which has been diagnosed as this learner's
+  dominant crutch. Because the learner has failed repeatedly at metrical cues … removing these
+  rhythmic scaffolding elements forces them to overcome this specific block."* Narration: "So the
+  course **rewrites itself for this learner**: metrical-regularity removal, originally session
+  three, is pulled forward to session one — a different schedule, because the agent diagnosed a
+  different weakness. Show the reasoning, not the masking."
 
 ## 4:00–5:00 · The build, told straight
 
