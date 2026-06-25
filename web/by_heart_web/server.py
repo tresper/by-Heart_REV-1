@@ -55,6 +55,9 @@ class StartRequest(BaseModel):
     poem_id: str = DEMO_POEM_ID
     session_index: int = 0
     target: dict[str, int] | None = None
+    # The strongest scaffold hint already given for this word (0 = first attempt); a retry
+    # passes it so the scaffold ladder climbs instead of restarting at level 1.
+    prior_hint_level: int = 0
 
 
 class SubmitRequest(BaseModel):
@@ -162,13 +165,23 @@ async def course_get(web_session_id: str, poem_id: str = DEMO_POEM_ID) -> dict[s
 @app.post("/api/recall/start")
 async def recall_start(body: StartRequest) -> dict[str, Any]:
     ws = _require_session(body.web_session_id)
-    return await drive.start_recall(ws, body.poem_id, body.session_index, body.target)
+    return await drive.start_recall(
+        ws, body.poem_id, body.session_index, body.target, body.prior_hint_level
+    )
 
 
 @app.post("/api/recall/submit")
 async def recall_submit(body: SubmitRequest) -> dict[str, Any]:
     ws = _require_session(body.web_session_id)
     return await drive.resume_recall(ws, body.recall)
+
+
+@app.post("/api/recall/reveal")
+async def recall_reveal(body: SubmitRequest) -> dict[str, Any]:
+    """Disclose the current word after a miss (the explicit "I give up" action). Reuses the
+    ``SubmitRequest`` body — only ``web_session_id`` is needed; ``recall`` is ignored."""
+    ws = _require_session(body.web_session_id)
+    return drive.reveal_recall(ws)
 
 
 # ---------------------------------------------------------------------------
