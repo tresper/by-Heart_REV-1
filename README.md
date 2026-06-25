@@ -23,6 +23,11 @@ agents themselves — built as a two-graph **Google ADK 2.0** multi-agent system
 
 ## Architecture (two ADK graphs)
 
+> **New to agentic systems?** For a narrative, concept-by-concept walkthrough — with one-line
+> definitions of ADK, MCP, Gemini, nodes, graphs, and conditional routing as they come up — read
+> **[How By Heart uses an agentic workflow](docs/HOW_THIS_APP_USES_AGENTIC_WORKFLOW.md)**. The
+> sections below are the terse reference version.
+
 **Build Pipeline (Graph A)** — runs once per poem:
 `provenance_gate` (admits only allowlisted public-domain poems) → `prosody_analysis`
 (a Gemini agent grounded by the **Prosody MCP** — CMU dict + g2p — that commits the
