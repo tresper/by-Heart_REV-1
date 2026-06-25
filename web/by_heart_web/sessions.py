@@ -48,10 +48,17 @@ class WebSession:
         if self.plugin is None:
             self.plugin = NodeTransitionPlugin(self.queue)
 
-    def clear_recall(self) -> None:
-        """Drop the in-flight recall once it has been graded."""
+    def clear_pause(self) -> None:
+        """Drop the consumed ADK pause once an attempt is graded, but KEEP the
+        ``target_context``: a missed word can still be retried or revealed, both of which
+        read the (still server-side) answer from the context. The next ``start_recall``
+        overwrites the context with the next word."""
         self.adk_session_id = None
         self.interrupt_id = None
+
+    def clear_recall(self) -> None:
+        """Fully drop the in-flight recall (pause + context)."""
+        self.clear_pause()
         self.target_context = None
 
 

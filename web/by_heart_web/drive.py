@@ -128,8 +128,10 @@ def _structured_stanza(
     Mirrors ``render_masked_line`` exactly (same ``_WORD_RE``, same session masks) but
     emits structure instead of a flat string, so the page can highlight the *specific*
     target blank among the stanza's other blanks and fill it in on a correct recall. Each
-    segment is ``{"t": "text", "v": str}`` or ``{"t": "blank", "len": int, "target": bool}``.
-    The answer word is never included — only its length sizes the blank.
+    segment is ``{"t": "text", "v": str}`` or ``{"t": "blank", "len": int, "target": bool,
+    "stanza_idx", "line_idx", "word_idx"}``. The position lets the page keep words the
+    learner has already earned (or revealed) filled in as it re-renders the stanza for the
+    next word. The answer word is never included — only its length sizes the blank.
     """
     try:
         sx = int(target_ctx["stanza_idx"])
@@ -158,7 +160,14 @@ def _structured_stanza(
                 segs.append({"t": "text", "v": line[last:mo.start()]})
             token = mo.group()
             if (li, i) in masked:
-                segs.append({"t": "blank", "len": len(token), "target": li == tline and i == twi})
+                segs.append({
+                    "t": "blank",
+                    "len": len(token),
+                    "target": li == tline and i == twi,
+                    "stanza_idx": sx,
+                    "line_idx": li,
+                    "word_idx": i,
+                })
             else:
                 segs.append({"t": "text", "v": token})
             last = mo.end()
@@ -235,6 +244,7 @@ async def start_recall(
     poem_id: str,
     session_index: int,
     target: dict[str, int] | None,
+    prior_hint_level: int = 0,
 ) -> dict[str, Any]:
     """Seed Graph B, run to the ``present_masked_line`` pause, and return the masked view.
 
@@ -242,6 +252,11 @@ async def start_recall(
     ``target_context`` on the web session so ``resume_recall`` can finish the attempt on
     the next request. The target word's surface form never leaves the server — only the
     underscore-blanked stanza/line and the word length do.
+
+    ``prior_hint_level`` carries the strongest scaffold hint already given for THIS word on
+    a previous failed attempt. Each retry is a fresh ADK session, so seeding it as the
+    session's ``hint_level`` lets the existing ``scaffold`` node climb the §3 cue-withdrawal
+    ladder (1 rhyme → 2 first letter → 3 gloss) across retries instead of restarting at 1.
     """
     ws.plugin.graph = "recall"
     admitted = evaluate_provenance(poem_id, manifest=load_manifest())
@@ -254,6 +269,8 @@ async def start_recall(
         "learner_id": ws.learner_id,
         "session_index": session_index,
     }
+    if prior_hint_level and prior_hint_level > 0:
+        state["hint_level"] = int(prior_hint_level)
     if target is not None:
         state["target"] = {
             "stanza_idx": int(target["stanza_idx"]),
@@ -358,7 +375,10 @@ async def resume_recall(ws: WebSession, recall_text: str) -> dict[str, Any]:
     # isn't given away, and a future retry isn't spoiled).
     revealed = str((ws.target_context or {}).get("word", "")) if advanced else None
 
-    ws.clear_recall()
+    # Drop the consumed pause (no double-submit), but keep ``target_context``: a miss can
+    # still be retried (re-presents the same word) or revealed (the learner gives up), and
+    # both read the answer that is still held server-side.
+    ws.clear_pause()
     return {
         "ok": True,
         "outcome": outcome,
@@ -367,6 +387,29 @@ async def resume_recall(ws: WebSession, recall_text: str) -> dict[str, Any]:
         "revealed_word": revealed,
         "hint": hint,
         "hint_level": hint_level,
+    }
+
+
+def reveal_recall(ws: WebSession) -> dict[str, Any]:
+    """Reveal the current word's surface form — the explicit "I give up" action.
+
+    The answer is held server-side until earned; this surfaces it only on a deliberate
+    learner request (after a miss), so the page can fill the blank in and move on. The
+    attempt was already graded a miss on the failed submit, so revealing records nothing
+    new — it just discloses what the learner stopped trying to recall.
+    """
+    context = ws.target_context or {}
+    word = str(context.get("word", ""))
+    if not word:
+        return {"ok": False, "reason": "no word is awaiting recall"}
+    return {
+        "ok": True,
+        "revealed_word": word,
+        "target": {
+            "stanza_idx": context.get("stanza_idx"),
+            "line_idx": context.get("line_idx"),
+            "word_idx": context.get("word_idx"),
+        },
     }
 
 
