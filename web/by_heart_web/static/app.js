@@ -25,6 +25,25 @@ const LAYOUT = {
 };
 const LABELS = { "__START__": "START" };
 
+// Friendly names for the reasoning log, and which graph node each LLM sub-step belongs
+// to (deletion_rationale + adaptive_planner run *inside* curriculum_plan via ctx.run_node,
+// so they have no circle of their own — we pulse their parent and log them as sub-steps).
+const NODE_LABELS = {
+  "__START__": "Start",
+  "provenance_gate": "Provenance gate",
+  "prosody_analysis": "Prosody analysis (LLM + MCP)",
+  "deletion_rationale": "Deletion Rationale (LLM)",
+  "adaptive_planner": "Adaptive re-plan (LLM)",
+  "curriculum_plan": "Curriculum plan",
+  "refuse": "Refused (not public-domain)",
+  "present_masked_line": "Present masked line",
+  "adjudicate": "Adjudicator — semantic grade (LLM)",
+  "scaffold": "Scaffolding Coach — minimum hint (LLM)",
+  "advance": "Advance (mastered)",
+  "memory_update": "Memory update",
+};
+const SUBSTEP_PARENT = { "deletion_rationale": "curriculum_plan", "adaptive_planner": "curriculum_plan" };
+
 // ---- session/app state ----
 let WSID = null;
 let POEM_ID = "frost-stopping-by-woods";
@@ -32,6 +51,7 @@ let TOPO = { build: null, recall: null };
 let currentSessionIndex = 0;
 let currentTargets = [];
 let currentTargetIdx = 0;
+let currentTargetBlank = null;   // the DOM <span> for the blank currently being quizzed
 let prevFirstStrip = null;   // {crutch: sessionIndex} from the previous build (for the re-plan diff)
 let hasBuilt = false;
 
@@ -152,26 +172,40 @@ function markRoute(graph, fromName, route) {
 function applyTransition(m) {
   const graph = m.graph || "recall";
   if (m.kind === "tool") {
-    logItem(`Prosody MCP · ${m.tool}`, true);
+    logItem(`Prosody MCP · ${m.tool}`, "tool");
     const n = nodeEl("build", "prosody_analysis");
     if (n) n.classList.add("active", "done");
     return;
   }
+  const label = NODE_LABELS[m.node] || m.node;
+
+  // An LLM sub-step (e.g. deletion_rationale) has no circle of its own — light its
+  // parent node instead and log it as an indented reasoning sub-step.
+  const parent = SUBSTEP_PARENT[m.node];
+  if (parent) {
+    const pe = nodeEl(graph, parent);
+    if (pe) pe.classList.add("active", "done");
+    logItem(`↳ ${label}`, "substep");
+    return;
+  }
+
   const known = nodeEl(graph, m.node);
   if (known) setActive(graph, m.node);
-  logItem(`${graph === "build" ? "A" : "B"} · ${m.node}` +
-          (m.route ? ` → ${m.route}` : "") + (m.waiting ? "  (waiting for you)" : ""));
-  if (m.route) markRoute(graph, m.node, m.route);
+  logItem(label + (m.waiting ? "  — waiting for you" : ""), "node");
+  if (m.route) {
+    markRoute(graph, m.node, m.route);
+    logItem(`↳ routed: ${m.route}`, "route");
+  }
   if (m.waiting && known) known.classList.add("waiting");
 }
 
-function logItem(text, isTool) {
+function logItem(text, kind) {
   const ul = $("log");
   const li = document.createElement("li");
-  if (isTool) li.className = "tool";
+  if (kind) li.className = kind;
   li.textContent = text;
   ul.appendChild(li);
-  while (ul.children.length > 40) ul.removeChild(ul.firstChild);
+  while (ul.children.length > 50) ul.removeChild(ul.firstChild);
   ul.scrollTop = ul.scrollHeight;
 }
 
@@ -280,6 +314,29 @@ async function showProfile() {
 // ---------------------------------------------------------------------------
 // Recall (Graph B)
 // ---------------------------------------------------------------------------
+
+// Render the stanza from structured segments so the ONE quizzed blank is distinct from
+// the stanza's other blanks; remember its <span> so we can fill it in on a correct recall.
+function renderStanza(stanzaLines) {
+  const pv = $("poem-view");
+  pv.innerHTML = "";
+  currentTargetBlank = null;
+  stanzaLines.forEach((segs, li) => {
+    segs.forEach((s) => {
+      if (s.t === "text") {
+        pv.appendChild(document.createTextNode(s.v));
+      } else {
+        const span = document.createElement("span");
+        span.className = "blank" + (s.target ? " target" : "");
+        span.textContent = "_".repeat(Math.max(1, s.len));
+        if (s.target) { span.id = "target-blank"; currentTargetBlank = span; }
+        pv.appendChild(span);
+      }
+    });
+    if (li < stanzaLines.length - 1) pv.appendChild(document.createTextNode("\n"));
+  });
+}
+
 async function startSession() {
   currentSessionIndex = Number($("session-pick").value);
   const targets = (window.__targets || {})[currentSessionIndex] || [];
@@ -314,8 +371,13 @@ async function startTarget() {
     $("poem-view").textContent = `Could not present a word: ${res.reason || "unknown"}`;
     return;
   }
-  const stanza = esc(res.rendered_stanza).replace(/_+/g, (m) => `<span class="blankline">${m}</span>`);
-  $("poem-view").innerHTML = stanza;
+  if (Array.isArray(res.stanza_lines) && res.stanza_lines.length) {
+    renderStanza(res.stanza_lines);
+  } else {
+    // Fallback (older payloads): flat string, blanks styled generically, no single target.
+    currentTargetBlank = null;
+    $("poem-view").innerHTML = esc(res.rendered_stanza).replace(/_+/g, (mm) => `<span class="blank">${mm}</span>`);
+  }
   $("recall-progress").textContent = `· word ${currentTargetIdx + 1} of ${currentTargets.length}`;
   const cues = (res.available_cues || []);
   $("cue-note").textContent = cues.length
@@ -340,12 +402,24 @@ async function submitRecall() {
     $("result").textContent = res.reason || "could not grade";
     return;
   }
+
+  // Fill the quizzed blank: green with the poem's word on a success, a red flash on a miss.
+  if (currentTargetBlank) {
+    currentTargetBlank.classList.remove("target");
+    if (res.advanced && res.revealed_word) {
+      currentTargetBlank.textContent = res.revealed_word;
+      currentTargetBlank.classList.add("correct");
+    } else {
+      currentTargetBlank.classList.add("wrong");
+    }
+  }
+
   let html = `<span class="tag ${res.outcome}">${res.outcome.replace("_", " ")}</span> `;
   if (res.crutch_dependence && res.crutch_dependence !== "none") {
     html += `<span class="tag crutch">leaned on: ${esc(res.crutch_dependence)}</span> `;
   }
   if (res.advanced) {
-    html += `<span class="small good">✓ advanced</span>`;
+    html += `<span class="small good">✓ filled in — ${res.outcome === "variant" ? "accepted variant" : "correct"}</span>`;
   }
   if (res.hint) {
     html += `<div class="small" style="margin-top:8px;">Scaffold hint (level ${res.hint_level}): ${esc(res.hint)}</div>`;
