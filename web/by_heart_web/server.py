@@ -37,8 +37,24 @@ DEMO_POEM_ID = "frost-stopping-by-woods"
 _LEARNER_COOKIE = "byheart_learner"
 _STATIC_DIR = Path(__file__).parent / "static"
 
+
+class _NoCacheStaticFiles(StaticFiles):
+    """Serve the front-end with revalidation forced on every load.
+
+    The demo is a single static page + ``app.js``; a stale cached copy silently renders
+    old UI against a live (new) backend — exactly the confusing failure to avoid mid-demo.
+    ``no-cache`` keeps the fast ETag revalidation (304s) but guarantees the browser never
+    *uses* a cached asset without first checking it is current.
+    """
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 app = FastAPI(title="By Heart — Web Trainer", version="0.1.0")
-app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+app.mount("/static", _NoCacheStaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +94,8 @@ def _require_session(web_session_id: str):
 
 @app.get("/")
 async def index() -> FileResponse:
-    return FileResponse(str(_STATIC_DIR / "index.html"))
+    # no-cache so a refresh always revalidates — never render a stale page against a live backend.
+    return FileResponse(str(_STATIC_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/graphs")

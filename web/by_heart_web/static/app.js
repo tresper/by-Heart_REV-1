@@ -170,6 +170,26 @@ function markRoute(graph, fromName, route) {
 }
 
 // ---------------------------------------------------------------------------
+// Collapse / expand a graph. Graph A auto-collapses once a recall session starts
+// (it's static after the build) so the reasoning log grows into the freed space;
+// it auto-expands again on Build / Re-plan so you can watch the pipeline run.
+// ---------------------------------------------------------------------------
+function setGraphCollapsed(graph, collapsed) {
+  const wrap = $(`gw-${graph}`);
+  if (!wrap) return;
+  wrap.classList.toggle("collapsed", collapsed);
+  const btn = wrap.querySelector(".graphtitle");
+  if (btn) btn.setAttribute("aria-expanded", String(!collapsed));
+  // Only Graph A's height is handed to the log — it's the one that auto-collapses.
+  if (graph === "build") $("agents-panel").classList.toggle("graphA-collapsed", collapsed);
+}
+
+function toggleGraph(graph) {
+  const wrap = $(`gw-${graph}`);
+  if (wrap) setGraphCollapsed(graph, !wrap.classList.contains("collapsed"));
+}
+
+// ---------------------------------------------------------------------------
 // Live transitions (from SSE)
 // ---------------------------------------------------------------------------
 function applyTransition(m) {
@@ -221,6 +241,8 @@ async function build() {
   $("build-status").textContent = "running Graph A…";
   $("build-notice").classList.add("hidden");
   clearGraph("build");
+  setGraphCollapsed("build", false);     // expand Graph A so you can watch the pipeline run
+  $("gt-status-build").textContent = "";
 
   const res = await fetch("/api/course/build", {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -245,6 +267,7 @@ async function build() {
   }
 
   $("build-status").textContent = "course ready.";
+  $("gt-status-build").textContent = "✓ complete";
   renderCourse(res.course);
   await loadTargetsAndDiff();
   $("btn-replan").classList.remove("hidden");
@@ -363,6 +386,7 @@ async function startSession() {
   solvedWords = {};        // fresh slate of earned/revealed words for this run-through
   currentHintLevel = 0;
   $("session-done").classList.add("hidden");
+  setGraphCollapsed("build", true);      // Graph A is static now — give the log the room
   if (!currentTargets.length) {
     $("recall").classList.remove("hidden");
     $("poem-view").textContent = "(no new words to recall in this session)";
@@ -515,6 +539,8 @@ function wireButtons() {
   $("btn-retry").addEventListener("click", tryAgain);
   $("btn-reveal").addEventListener("click", revealAndContinue);
   $("recall-input").addEventListener("keydown", (e) => { if (e.key === "Enter") submitRecall(); });
+  document.querySelectorAll(".graphtitle").forEach((btn) =>
+    btn.addEventListener("click", () => toggleGraph(btn.dataset.graph)));
 }
 
 boot();
