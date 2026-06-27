@@ -255,3 +255,17 @@ __marimo__/
 
 # Local pre-submission working note — not part of the published repo.
 PRE_SUBMISSION_PUNCHLIST.md
+
+# Sponsor-authored competition text (Kaggle/Google), kept locally for reference but
+# excluded from the public repo: it is not our original work to relicense under the
+# repo's CC-BY 4.0 LICENSE, and it is irrelevant to judges cloning the code.
+Capstone_Project_Hackathon_Evaluation.md
+Capstone_Project_Hackathon_Rules.md
+Capstone_Project_Hackathon_Rules_Section_3-18.md
+Capstone_Project_Hackathon_Overview.md
+Capstone_Project_Hackathon_Description.md
+Capstone_Project_Hackathon_Tracks_and_Awards.md
+Capstone_Project_Hackathon_Submission_Requirements.md
+
+# Local private working note — never published.
+MEMO_TO_SELF.md

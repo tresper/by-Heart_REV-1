@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-27 — Exclude sponsor competition text + local memo from the public repo
+- Decision: untracked the seven `docs/Kaggle/*.md` files (Kaggle/Google's own competition pages — Overview, Description, Rules, Rules §3-18, Evaluation, Tracks & Awards, Submission Requirements), keeping them on disk, and added them plus a local `MEMO_TO_SELF.md` to `.gitignore`. The public repo now carries only our own source.
+- Why: the repo is licensed CC-BY 4.0 (the rules' winner-license requirement), which only covers *our* original work. Republishing the sponsor's copyrighted competition text under that LICENSE would misstate its license and isn't ours to relicense; the docs are also irrelevant to a judge cloning the code. Removing them strengthens the warranty-of-original-work posture (Rule 3.14) at zero cost to the submission.
+- Alternatives considered: leave them tracked (looks harmless) — rejected: it places third-party copyrighted text under our CC-BY 4.0 LICENSE and clutters the judged repo. `.gitignore` only, without `git rm --cached` — rejected: they were already committed, so ignoring alone would not remove them from the published tree.
+- Concept served: Security (rules / IP-license compliance).
+- Shows in: code, writeup.
+
 ## 2026-06-27 — Adversarial review fixes: single-letter hint leak, doc-claim residuals, stale test count
 - Decision: a 9-agent adversarial review of the un-merged punch-list stack found four low-severity defects, all fixed. (1) The answer-scrub's first-letter fallback could itself disclose a single-letter masked word ("I"/"a"/"O", masked at rung 4), so it now falls through to the first deterministic cue that does not name the word, terminating in a bare length-blank (`"_"*len`) that carries no word tokens and can never leak — covered by two new key-free tests. (2) The `JoinNode` and "Session & Memory" overclaims also lived in `CLAUDE.md` and the blueprint (not only the README/blueprint lines the §3 register cited by file:line), now reconciled repo-wide. (3) The README's hardcoded "75 deterministic tests" had drifted to 81 as later phases added tests, so the wording is now count-agnostic. (4) The demo's adapted-summary line no longer prints a "schedule order held" claim when there was no base course to compare.
 - Why: the review caught real claim/code gaps automated tests miss — the security invariant "a hint cannot leak the answer" was provably false for single-letter corpus tokens, and the P1-5 doc reconciliation had missed instances in the authoritative spec files. For a one-shot public submission, closing these before merge keeps every cross-checkable claim true.
