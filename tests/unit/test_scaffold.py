@@ -49,3 +49,34 @@ def test_authored_gloss_is_preserved_at_level_three() -> None:
     cand = {1: "r", 2: "f"}
     out = _validate_hint({"hint_level": 3, "hint": "the daytime star"}, 0, cand)
     assert out == {"hint_level": 3, "hint": "the daytime star"}
+
+
+def test_hint_naming_the_answer_is_scrubbed_at_every_level() -> None:
+    """A coach swayed into naming the masked word is replaced with a deterministic cue
+    that cannot — so answer non-disclosure is structural, not merely instructed."""
+    cand = {1: "It rhymes with “done.”", 2: "It starts with “s.”"}
+    # Levels 1 and 2: a leaked answer is swapped for the answer-free deterministic cue.
+    for level in (1, 2):
+        out = _validate_hint(
+            {"hint_level": level, "hint": "the answer is sun"}, 0, cand, expected_word="sun"
+        )
+        assert "sun" not in out["hint"].lower()
+    # A level-3 gloss that leaks falls back to the first-letter cue, keeping the level.
+    out3 = _validate_hint(
+        {"hint_level": 3, "hint": "a sun over the field"},
+        prior_level=2,
+        candidates=cand,
+        expected_word="sun",
+    )
+    assert out3["hint_level"] == 3
+    assert "sun" not in out3["hint"].lower()
+
+
+def test_answer_guard_is_fail_safe_for_a_non_leaking_gloss() -> None:
+    """The scrub only fires on an actual leak: a legitimate gloss is left untouched even
+    when the expected word is supplied (no false-trip on an unrelated token)."""
+    cand = {1: "r", 2: "f"}
+    out = _validate_hint(
+        {"hint_level": 3, "hint": "the daytime star"}, 0, cand, expected_word="sun"
+    )
+    assert out == {"hint_level": 3, "hint": "the daytime star"}

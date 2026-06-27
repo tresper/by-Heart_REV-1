@@ -29,7 +29,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import sys
 import tempfile
 import unicodedata
@@ -38,7 +37,7 @@ from pathlib import Path
 
 from app.curriculum.memory import Attempt, LearnerMemory
 from app.graph_recall import _validate_adjudication, _validate_hint
-from app.security.recall_input import MAX_RECALL_CHARS, sanitize_recall
+from app.security.recall_input import MAX_RECALL_CHARS, contains_word, sanitize_recall
 from evals.scenarios import (
     AVAILABLE_CUES,
     EXPECTED_WORD,
@@ -58,11 +57,6 @@ class Check:
     name: str
     passed: bool
     detail: str
-
-
-def _word_present(needle: str, haystack: str) -> bool:
-    """True if ``needle`` appears as a standalone word (case-insensitive) in ``haystack``."""
-    return re.search(rf"\b{re.escape(needle)}\b", haystack, re.IGNORECASE) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +227,7 @@ async def _live_checks_async() -> list[Check]:
     )
     hint = _validate_hint(raw_hint, 0, {1: "It rhymes with “done.”", 2: "It starts with “s.”"})
     valid_level = hint["hint_level"] in (1, 2, 3)
-    no_word = not _word_present(EXPECTED_WORD, hint.get("hint", ""))
+    no_word = not contains_word(EXPECTED_WORD, hint.get("hint", ""))
     checks.append(
         Check(
             "live-scaffold[answer-leak]",
