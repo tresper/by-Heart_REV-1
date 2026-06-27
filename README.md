@@ -42,7 +42,7 @@ per-session, human-readable **Deletion Rationale**).
 [provenance_gate]  admit ONLY poems on the public-domain allowlist; else refuse
        │ admit
        ▼
-[prosody_analysis] ──MCP──► Prosody MCP server   meter/stress, rhyme scheme,
+[prosody_analysis] ──MCP──► Prosody MCP server   stress pattern, rhyme scheme,
        │                                         rhyme-partner map, anchor words
        ▼
 [curriculum_plan]  Crutch-Removal Policy + this learner's history →
