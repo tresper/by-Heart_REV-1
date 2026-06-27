@@ -72,6 +72,12 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 pythonpath = "."
 asyncio_default_fixture_loop_scope = "function"
+# Scope the default `uv run pytest` to this package's own suite. A fresh `uv sync`
+# installs only the root `by-heart` project, NOT the `web/` workspace member, so the
+# web env isn't present in the root interpreter; without this, default collection
+# would walk web/tests/ and abort the whole session on `import by_heart_web`. The web
+# trainer has its own suite: `uv run --package by-heart-web pytest web/tests`.
+testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
