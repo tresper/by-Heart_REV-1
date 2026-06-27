@@ -20,9 +20,9 @@ Two halves, deliberately split:
   LLM act while its evidence stays testable without a key.
 
 The crutch-dependence *tag* that makes ``relied_on`` meaningful is emitted by
-``adjudicate`` (§13.6, not yet built); until then ``crutch_dependence`` defaults to
-``"none"`` and the profile is dominated by ``missed_at``. The machinery here is
-exercised now on seeded history; the live loop closes in §13.6.
+``adjudicate`` (§13.6, ``app/graph_recall.py``): on a correct recall it names the one
+still-visible cue the learner leaned on, else ``"none"``. The same deterministic
+reduction also runs on seeded history, so the profile stays testable without a key.
 """
 
 from __future__ import annotations
