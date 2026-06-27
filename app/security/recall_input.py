@@ -49,3 +49,17 @@ def sanitize_recall(text: str) -> str:
         cleaned.append(" " if category[0] == "C" else ch)  # other control chars → boundary
     collapsed = _WHITESPACE_RE.sub(" ", "".join(cleaned)).strip()
     return collapsed[:MAX_RECALL_CHARS].strip()
+
+
+def contains_word(word: str, text: str) -> bool:
+    """True if ``word`` appears as a standalone token (case-insensitive) in ``text``.
+
+    The answer-leak predicate shared by the Scaffolding Coach's hint guard
+    (``_validate_hint``) and the live injection eval: a hint may cite the rhyme partner
+    or a first letter, but never the masked word itself. Word-boundary (not substring)
+    matching so a longer word that merely contains the answer — or an unrelated token —
+    does not false-trip. Empty ``word`` matches nothing.
+    """
+    if not word:
+        return False
+    return re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE) is not None
