@@ -1,0 +1,17 @@
+# Cloud Build config for the By Heart web trainer (Cloud Run demo).
+#
+# The Dockerfile lives at web/Dockerfile and builds from the repo root, so the
+# default `gcloud builds submit --tag` (which expects ./Dockerfile) won't find it.
+# This config points the build at web/Dockerfile explicitly. The upload honors
+# .gitignore (so .env / var/ / .venv are never sent), and the image build honors
+# .dockerignore (so .env never lands in a layer).
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/REPO/by-heart-web:TAG .
+substitutions:
+  _IMAGE: ""  # full Artifact Registry image ref, supplied at submit time
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "web/Dockerfile", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"

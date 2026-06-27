@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-27 — Optional public demo: Cloud Run deploy with a layered cost ceiling
+- Decision: prepared an optional, judge-facing public deployment of the web trainer to Cloud Run (on a `phase/27` branch, not merged to `main`), using the **Gemini Developer API key** (model `gemini-flash-latest`, free-tier eligible) mounted from Secret Manager rather than Vertex AI, with cost bounded by Cloud Run `--max-instances 1` + scale-to-zero and a low daily quota cap on the Generative Language API. Added a root `cloudbuild.yaml` (the Dockerfile lives at `web/Dockerfile`, which `gcloud builds submit --tag` won't find) and a cost-capped runbook in `web/README.md`.
+- Why: the rubric's Public Project Link rewards a click-to-play live demo over a bare repo link, and Deployability is a course concept; the app was already Vertex-ready, so a hosted URL is config, not code. The Developer-API-key path keeps model spend on the free tier, and the layered controls give a genuine ceiling — important because a GCP *budget* only alerts, it does not hard-stop spend. The existing `.dockerignore` already keeps `.env` out of the image, so exposing a build is safe.
+- Alternatives considered: Vertex AI service account (kept as the documented production alternative) — rejected as the default because it is billed and needs more IAM setup for a throwaway demo. An in-app daily call cap — deferred: the API quota cap + Cloud Run bounds already cap cost server-side without touching `app/`, honoring the "don't disturb the working app" constraint. Hugging Face Spaces — viable, but the repo is already wired for Cloud Run and the sponsor is Google.
+- Concept served: Deployability.
+- Shows in: video, writeup, code.
+
 ## 2026-06-27 — Exclude sponsor competition text + local memo from the public repo
 - Decision: untracked the seven `docs/Kaggle/*.md` files (Kaggle/Google's own competition pages — Overview, Description, Rules, Rules §3-18, Evaluation, Tracks & Awards, Submission Requirements), keeping them on disk, and added them plus a local `MEMO_TO_SELF.md` to `.gitignore`. The public repo now carries only our own source.
 - Why: the repo is licensed CC-BY 4.0 (the rules' winner-license requirement), which only covers *our* original work. Republishing the sponsor's copyrighted competition text under that LICENSE would misstate its license and isn't ours to relicense; the docs are also irrelevant to a judge cloning the code. Removing them strengthens the warranty-of-original-work posture (Rule 3.14) at zero cost to the submission.
