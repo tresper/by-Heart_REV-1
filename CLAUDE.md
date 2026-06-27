@@ -11,12 +11,12 @@ By Heart is an agentic poetry-memorization tutor: it turns a vetted public-domai
 - **Meaningful agents:** every LLM node must do reasoning a `for` loop cannot. Preserve the agent interdependence in blueprint §4.
 
 ## Tech stack
-- **Framework:** Google ADK 2.0 — graph `Workflow`, `@node`, conditional routing, `JoinNode`, `RequestInput` (human-in-the-loop).
+- **Framework:** Google ADK 2.0 — graph `Workflow`, `@node`, conditional routing, `RequestInput` (human-in-the-loop).
 - **Runtime model:** Gemini (key from `.env`).
 - **Lifecycle:** `agents-cli` (`uvx google-agents-cli`) for scaffold / lint / test / eval / local playground.
 - **MCP:** a local Python stdio server (e.g. FastMCP) — the **Prosody MCP** (CMU Pronouncing Dictionary + grapheme-to-phoneme fallback). It MUST write only JSON-RPC to stdout; send all logging to stderr.
 - **Deps:** `uv`, with a committed lockfile.
-- **State:** ADK Session & Memory for learner state; a small local store (SQLite/JSON) for the corpus manifest, attempts, and mastery if simpler.
+- **State:** ADK Session for in-graph state; a small local JSON store for the corpus manifest, the learner-memory attempts, and mastery (ADK `MemoryService` is not wired — the durable learner record is the JSON store).
 - **Skills:** author project skills under `.claude/skills/<name>/SKILL.md`.
 
 ## Architecture (see blueprint §4 for full detail)

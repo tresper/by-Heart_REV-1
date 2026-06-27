@@ -352,9 +352,17 @@ def _validate_hint(
     if not hint:
         hint = candidates.get(level) or candidates.get(2) or candidates.get(1) or "Try the line again."
     if expected_word and contains_word(expected_word, hint):
-        # Keep the escalation level the learner has earned, but never disclose the word:
-        # the first-letter cue is the most help we can give without naming it.
-        hint = candidates.get(2) or candidates.get(1) or "Recall the line's rhythm and rhyme."
+        # Keep the escalation level the learner earned, but never disclose the word: fall back
+        # to the strongest deterministic cue that does NOT itself name it. The first-letter
+        # cue suffices for ordinary words; for a single-letter token ("I", "a", "O") it would
+        # equal the answer, so we keep scanning — to the rhyme cue, then to a bare length
+        # blank, which carries no word tokens and so can never leak.
+        safe_blank = "_" * len(expected_word)
+        hint = next(
+            (c for c in (candidates.get(2), candidates.get(1), safe_blank)
+             if c and not contains_word(expected_word, c)),
+            safe_blank,
+        )
     return {"hint_level": level, "hint": hint}
 
 

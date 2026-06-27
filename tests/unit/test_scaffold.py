@@ -9,6 +9,7 @@ when the LLM reply is empty/malformed — so scaffolding never returns nothing.
 from __future__ import annotations
 
 from app.graph_recall import _candidate_hints, _validate_hint
+from app.security.recall_input import contains_word
 
 
 def test_candidate_hints_surface_rhyme_partner_and_first_letter() -> None:
@@ -80,3 +81,24 @@ def test_answer_guard_is_fail_safe_for_a_non_leaking_gloss() -> None:
         {"hint_level": 3, "hint": "the daytime star"}, 0, cand, expected_word="sun"
     )
     assert out == {"hint_level": 3, "hint": "the daytime star"}
+
+
+def test_single_letter_answer_is_not_leaked_by_the_first_letter_cue() -> None:
+    """A single-letter masked word ("I", masked at rung 4) makes the first-letter cue equal
+    the answer, so the scrub must keep falling back to a cue that doesn't name it."""
+    cand = {1: "It rhymes with “sky.”", 2: "It starts with “I.”"}  # first-letter cue IS "I"
+    out = _validate_hint(
+        {"hint_level": 2, "hint": "the word is I"}, 0, cand, expected_word="I"
+    )
+    assert not contains_word("I", out["hint"])   # the rhyme cue is chosen, not the leaking one
+
+
+def test_scrub_falls_back_to_a_length_blank_when_every_cue_would_leak() -> None:
+    """If even the deterministic cues would name a (single-letter) answer, the scrub returns
+    a bare length blank — no word tokens, so it can never disclose the word."""
+    cand = {1: "the answer is a", 2: "a"}  # contrived: both cues name the answer "a"
+    out = _validate_hint(
+        {"hint_level": 3, "hint": "it is a"}, prior_level=2, candidates=cand, expected_word="a"
+    )
+    assert not contains_word("a", out["hint"])
+    assert set(out["hint"]) == {"_"}             # the guaranteed-safe length-blank terminal
