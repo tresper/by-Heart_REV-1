@@ -211,6 +211,13 @@ one-command runner above does for you.
 
 **The web trainer** (the live, browser-based showcase — the strongest hands-on demo):
 
+> **▶ Live demo (no setup, no key needed): <https://by-heart-web-596572954271.us-east1.run.app>**
+> — build a course, recall masked words, and trigger the adaptive re-plan with both ADK graphs
+> and the Prosody MCP lighting up live. Public Cloud Run instance; the first hit after idle may
+> cold-start for ~20s.
+
+Or run it locally:
+
 ```
 uv run --package by-heart-web uvicorn by_heart_web.server:app --reload --app-dir web
 ```
