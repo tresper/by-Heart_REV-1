@@ -96,9 +96,10 @@ strips a *different* crutch — play a session and watch the schedule adapt.
 - **Tool**: the **Prosody MCP server** (`app/prosody/server.py`) — CMU Pronouncing
   Dictionary + a grapheme-to-phoneme fallback so every archaic/poetic token resolves —
   called at runtime to provide deterministic phonetic ground truth the LLM nodes reason over.
-- **Services / data**: ADK **Session & Memory** for learner state, the **provenance
+- **Services / data**: ADK **Session** for in-graph state, the **provenance
   allowlist** (the public-domain guarantee), and small local JSON stores for the Course
-  and attempts (`var/`, gitignored).
+  and the learner-memory attempts that drive adaptation (`var/`, gitignored). (ADK's
+  `MemoryService` is not wired — the durable learner record is the local JSON store.)
 
 ## Agent Skills
 

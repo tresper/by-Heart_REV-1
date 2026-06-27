@@ -56,7 +56,7 @@ Foreground the evidence base and map each principle to an **agent behavior**, so
 
 ## 4. Agent architecture — ADK 2.0 graphs (scores Technical Implementation, 50 pts)
 
-Two ADK 2.0 **graph workflows** over a shared learner-memory store, grounded by a custom MCP tool and gated by a provenance check. We use ADK 2.0 idioms explicitly: `Workflow`, `@node`, conditional routing, `JoinNode`, and `RequestInput` for human-in-the-loop.
+Two ADK 2.0 **graph workflows** over a shared learner-memory store, grounded by a custom MCP tool and gated by a provenance check. We use ADK 2.0 idioms explicitly: `Workflow`, `@node`, conditional routing, and `RequestInput` for human-in-the-loop.
 
 ### What is an agent vs. a node vs. a tool (state this in the README)
 - **Orchestration = the graphs themselves** (the "Curriculum Director" is the two Workflows, not a separate LLM).
@@ -223,7 +223,7 @@ Judges reward one working, well-documented loop over a sprawling half-built plat
 
 ## 10. Tech stack (for a clean Claude Code hand-off)
 
-- **Framework:** Google **ADK 2.0** (graph `Workflow`, `@node`, `RequestInput`, `JoinNode`).
+- **Framework:** Google **ADK 2.0** (graph `Workflow`, `@node`, `RequestInput`).
 - **Model (runtime):** **Gemini** via Gemini API key (course-aligned; stored in `.env`, never committed).
 - **Lifecycle tooling:** **`agents-cli`** (`uvx google-agents-cli`) for scaffold / lint / test / **eval** / local playground.
 - **MCP:** Python MCP SDK (e.g., FastMCP) wrapping CMU dict + a g2p library; exposes scansion/rhyme tools.

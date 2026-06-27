@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-27 — Docs reconciled to code (claim/code register): no JoinNode, accurate Session wording
+- Decision: brought five stale doc/comment claims in line with the code rather than the reverse — README now says ADK **Session** (not "Session & Memory": `MemoryService` is not wired, the durable learner record is the local JSON store); the blueprint drops `JoinNode` from its two ADK-idiom lists; the `app/curriculum/memory.py` and `app/app.py` docstrings move to present tense (the §13.6 adjudicate/memory_update loop and the Gemini model wiring both exist now); `agents-cli-manifest.yaml` points `agent_guidance_filename` at the real `CLAUDE.md`, not a nonexistent `GEMINI.md`.
+- Why: the repo is public and the writeup cites it, so a judge can cross-check each claim against source; a present-but-false claim (a JoinNode we don't use, a "Memory" service we didn't wire, a "not yet built" loop that is built) reads as carelessness. Fixing the words is cheaper and more honest than fabricating the feature.
+- Alternatives considered: add a real `JoinNode` fan-in so the blueprint becomes true — rejected: both graphs are linear/branching with a RequestInput pause-resume and have no genuine fan-in, so adding one is gold-plating against the scope non-negotiable. Wire ADK `MemoryService` to justify "& Memory" — rejected for the same reason; the JSON store already serves the MVP.
+- Concept served: Documentation / ADK.
+- Shows in: code, writeup.
+
 ## 2026-06-27 — Demo/web: guard the money-shot from reading as a no-op; add a "Reset my progress" control
 - Decision: (a) `app/demo.py` step-4 now detects whether the adapted schedule actually pulls a crutch earlier and prints an explicit "✓ adapted: …" headline — naming the moved cue, or, when none moves, pointing at the personalized Deletion Rationale — so the re-plan never reads as a no-op. (b) The web trainer gains `POST /api/session/reset` + a "Reset my progress" button: it mints a fresh opaque learner id, re-issues the `byheart_learner` cookie, and the page reloads, so the next session starts from an empty history (the base schedule, ready to adapt from scratch). The shared append-only attempt log is never mutated; the deterministic masking policy is untouched.
 - Why: a rhyme-dominant learner produces no visible schedule change — `rhyme_partner` is already introduced at rung 1 and the adaptive overlay floors at rung 1 (`policy.py:165`), so a live/recorded demo could fall flat even though the agent chose correctly. Rather than relax the (correct) deterministic floor, the demo surfaces the adaptation textually as a fallback, and the web app lets a presenter start each before/after from a clean slate so the re-plan diff is unambiguous on camera.
