@@ -62,7 +62,7 @@ Two ADK 2.0 **graph workflows** over a shared learner-memory store, grounded by 
 - **Orchestration = the graphs themselves** (the "Curriculum Director" is the two Workflows, not a separate LLM).
 - **LLM nodes** (each does reasoning a `for` loop cannot): `prosody_analysis`, `curriculum_plan`, `adjudicate`, `scaffold`, and the optional `literary_companion`.
 - **Tool**: the **Prosody MCP server** (called at runtime by `prosody_analysis`, and by `adjudicate` for rhyme-aware grading).
-- **Services / data**: ADK **Session & Memory** (learner state — the Day-3 Context Engineering concept made concrete) and the **Provenance allowlist** (the public-domain guarantee, §8).
+- **Services / data**: ADK **Session** plus a small local JSON store for learner state (the durable learner-memory record; ADK `MemoryService` is not wired in the MVP) and the **Provenance allowlist** (the public-domain guarantee, §8).
 
 ### Graph A — Build Pipeline (runs once per poem → emits a Course)
 ```
@@ -227,7 +227,7 @@ Judges reward one working, well-documented loop over a sprawling half-built plat
 - **Model (runtime):** **Gemini** via Gemini API key (course-aligned; stored in `.env`, never committed).
 - **Lifecycle tooling:** **`agents-cli`** (`uvx google-agents-cli`) for scaffold / lint / test / **eval** / local playground.
 - **MCP:** Python MCP SDK (e.g., FastMCP) wrapping CMU dict + a g2p library; exposes scansion/rhyme tools.
-- **State:** ADK Session & Memory service for learner state; a small local store (e.g., SQLite/JSON) for the corpus manifest, attempts, and mastery if simpler.
+- **State:** ADK Session for in-graph state; a small local JSON store for learner state — the corpus manifest, attempts, and mastery (ADK `MemoryService` is not wired in the MVP).
 - **Skills:** authored `SKILL.md` files in the repo (`scansion`, `crutch-removal-deletion`, `stride-threat-model`, `provenance-gate`).
 - **Dev agent:** **Claude Code (Opus 4.8 + Sonnet)**, used transparently.
 - **Package mgmt:** `uv` (with a lockfile for reproducibility).

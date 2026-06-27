@@ -194,8 +194,8 @@ uv run python -m evals.injection_pii_eval
 It prints a per-scenario PASS/FAIL table — injection containment, the input sanitizer, and
 PII-minimization — and exits non-zero on any failure. The deterministic checks need no API key;
 the live model scenarios run when a Gemini key is present. These same checks also run inside the
-test suite: `uv run pytest` exercises the core package (75 deterministic tests, 5 live tests
-skipped without a key); the web trainer has its own suite via
+test suite: `uv run pytest` exercises the core package (the deterministic tests, plus the few
+live tests that are skipped without a key); the web trainer has its own suite via
 `uv run --package by-heart-web pytest web/tests`.
 
 **The agents-cli playground** (the visual path for the Build Pipeline):
