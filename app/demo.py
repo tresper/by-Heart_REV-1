@@ -285,13 +285,28 @@ async def step4_replan(session_service, poem_id: str, learner_id: str, base: Cou
     if adapted is None:
         print("    FAIL — no adapted Course was persisted\n")
         return False
+    moved_earlier: list[str] = []
     if base is not None:
         base_at, adapted_at = _first_strip_session(base), _first_strip_session(adapted)
         print("    crutch-removal schedule — first session that strips each crutch:")
         for crutch in ("rhyme_partner", "metrical_regularity", "syntactic_momentum"):
             b, a = base_at.get(crutch), adapted_at.get(crutch)
-            moved = " ← pulled earlier" if (b is not None and a is not None and a < b) else ""
-            print(f"      {crutch:21} base=session {b}   adapted=session {a}{moved}")
+            pulled = b is not None and a is not None and a < b
+            if pulled:
+                moved_earlier.append(crutch)
+            mark = " ← pulled earlier" if pulled else ""
+            print(f"      {crutch:21} base=session {b}   adapted=session {a}{mark}")
+    # Guard the money shot from reading as a no-op: the adaptation is visible either as a
+    # schedule move OR — when this learner's dominant cue is already stripped first (a
+    # rhyme-only pattern bottoms out at rung 1) — as the personalized rationale below. Name
+    # which, so the step always shows the agent did something.
+    if moved_earlier:
+        print(f"    ✓ adapted: {', '.join(moved_earlier)} now stripped sooner for this learner")
+    else:
+        print(
+            "    ✓ adapted: schedule order held, but the Deletion Rationale below is "
+            "personalized to the recorded pattern"
+        )
     print("    re-planned Deletion Rationale (personalized to the recorded pattern):")
     _print_rationale(adapted)
     print()

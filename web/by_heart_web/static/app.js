@@ -274,6 +274,15 @@ async function build() {
   hasBuilt = true;
 }
 
+// Start over as a fresh learner: rotate the learner cookie server-side, then reload so
+// boot() re-initializes against the clean (empty-history) learner — the base schedule,
+// ready to adapt from scratch, so the re-plan before/after is unambiguous each run.
+async function resetProgress() {
+  if (!confirm("Reset and start over as a fresh learner? This clears your recorded progress so the re-plan starts from a clean slate.")) return;
+  await fetch("/api/session/reset", { method: "POST" });
+  location.reload();
+}
+
 function renderCourse(course) {
   const list = $("rationale-list");
   list.innerHTML = "";
@@ -533,6 +542,7 @@ function nextWord() {
 function wireButtons() {
   $("btn-build").addEventListener("click", build);
   $("btn-replan").addEventListener("click", build);
+  $("btn-reset").addEventListener("click", resetProgress);
   $("btn-start").addEventListener("click", startSession);
   $("btn-submit").addEventListener("click", submitRecall);
   $("btn-next").addEventListener("click", nextWord);

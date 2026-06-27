@@ -140,6 +140,18 @@ def test_provenance_refusal_endpoint(client) -> None:
     assert "allowlist" in body["reason"].lower()
 
 
+def test_reset_session_rotates_the_learner_to_a_clean_slate(client) -> None:
+    """Reset mints a fresh learner and re-issues the cookie, so the next session starts with
+    an empty history — the clean base schedule the adaptive re-plan then personalizes."""
+    learner_a = client.post("/api/session").json()["learner_id"]
+    reset = client.post("/api/session/reset")
+    assert reset.status_code == 200
+    learner_b = reset.json()["learner_id"]
+    assert learner_b and learner_b != learner_a              # a genuinely fresh learner
+    # The rotated cookie carries into the next session → the clean learner, not the old one.
+    assert client.post("/api/session").json()["learner_id"] == learner_b
+
+
 def test_graphs_endpoint(client) -> None:
     body = client.get("/api/graphs").json()
     assert set(body["build"]["nodes"]) >= {"provenance_gate", "curriculum_plan"}
