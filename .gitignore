@@ -252,3 +252,6 @@ __marimo__/
 .adk/
 .agents-cli-scripts/
 .google-agents-cli/
+
+# Local pre-submission working note — not part of the published repo.
+PRE_SUBMISSION_PUNCHLIST.md
