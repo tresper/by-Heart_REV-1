@@ -165,6 +165,60 @@ def test_start_recall_failure_is_graceful(monkeypatch) -> None:
     assert ws.adk_session_id is None             # no pause committed on the failure path
 
 
+def test_present_masked_line_emits_the_real_viz_event(monkeypatch, tmp_path) -> None:
+    """End-to-end key-free proof that the installed ADK emits a node event in the exact shape
+    viz._node_transition consumes — node_info.name + long_running_tool_ids — not the
+    fabricated _fake_event used above. Drives the REAL recall_session to its
+    present_masked_line pause (a deterministic, model-free START node) and asserts a genuine
+    emitted event yields node=='present_masked_line' with waiting=True."""
+    monkeypatch.setenv("BY_HEART_STATE_DIR", str(tmp_path))
+
+    from by_heart_web import viz
+    from by_heart_web.sessions import SESSION_SERVICE, create_web_session
+    from google.adk.runners import Runner
+    from google.genai import types as gtypes
+
+    from app.curriculum.memory import save_course
+    from app.curriculum.types import Course, MaskedSpan, SessionPlan
+    from app.graph_recall import recall_session
+
+    poem = "Whose woods these are I think I know.\nHis house is in the village though;"
+    course = Course(
+        poem_id="viztest", stanza_count=1,
+        sessions=(SessionPlan(index=0, rung=1,
+                  masks=(MaskedSpan(0, 0, 7, "know", "rhyme_partner", 1),)),),
+    )
+    ws = create_web_session("viz-real")
+    save_course(course, ws.learner_id)
+
+    async def run() -> list[dict]:
+        session = await SESSION_SERVICE.create_session(
+            app_name="by-heart", user_id=ws.learner_id,
+            state={"poem_id": "viztest", "poem_text": poem,
+                   "learner_id": ws.learner_id, "session_index": 0},
+        )
+        runner = Runner(agent=recall_session, session_service=SESSION_SERVICE,
+                        app_name="by-heart", plugins=[ws.plugin])
+        out: list[dict] = []
+        async for event in runner.run_async(
+            user_id=ws.learner_id, session_id=session.id,
+            new_message=gtypes.Content(role="user", parts=[gtypes.Part.from_text(text="go")]),
+        ):
+            tr = viz._node_transition(event)
+            if tr is not None:
+                out.append(tr)
+        return out
+
+    transitions = asyncio.run(run())
+    nodes = [t["node"] for t in transitions]
+    assert "present_masked_line" in nodes, f"expected a present_masked_line event, got {nodes}"
+    pml = next(t for t in transitions if t["node"] == "present_masked_line")
+    assert pml["waiting"] is True   # the RequestInput human-in-the-loop pause was real
+    # NOTE: the downstream memory_update hint extraction (drive.py) needs the Adjudicator/
+    # Coach (a model), so it stays a live check via `uv run python -m app.demo` — not faked
+    # here. This test backs the load-bearing claim: the real ADK event shape viz.py reads.
+
+
 # --- endpoint checks (skip if httpx/TestClient unavailable) -----------------
 
 @pytest.fixture
