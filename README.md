@@ -124,9 +124,10 @@ deploy) and the controls are explicit and tested:
   newlines collapsed — while legitimate poetic tokens (`o'er`, `café`) survive.
 - **Prompt-injection containment is structural.** The Adjudicator and Coach are told the recall
   is untrusted data, but the guarantee is that their output is a *validated proposal*: the grade
-  is clamped to the legal vocabulary and the crutch tag to cues that were actually visible. A
+  is clamped to the legal vocabulary, the crutch tag to cues that were actually visible, and a
+  hint that would name the masked word is replaced with a non-disclosing deterministic cue. A
   model fully swayed by an injected recall still cannot emit an illegal grade, fabricate a tag,
-  or over-escalate a hint.
+  over-escalate a hint, or leak the answer word.
 - **Minimal-PII + secrets hygiene.** Identity is an opaque `learner_id`; the free-text recall is
   **never persisted** (the attempt record has no field for it). The Gemini key lives only in
   `.env` (gitignored); `.env.example` ships placeholders.

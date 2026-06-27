@@ -43,7 +43,7 @@ from app.curriculum.policy import is_metrically_regular
 from app.curriculum.types import SessionPlan, line_tokens, render_masked_line
 from app.models import gemini
 from app.prosody.analysis import _STOPWORDS, analyze_poem
-from app.security.recall_input import sanitize_recall
+from app.security.recall_input import contains_word, sanitize_recall
 
 # The Adjudicator's grade vocabulary (blueprint §4). "hit"/"variant" are successes (a
 # meaning-preserving variant still counts as recalled); "near_miss"/"miss" are not.
@@ -323,11 +323,21 @@ def _candidate_hints(target_context: dict[str, Any]) -> dict[int, str]:
     return {1: rhyme, 2: first_letter}
 
 
-def _validate_hint(raw: Any, prior_level: int, candidates: dict[int, str]) -> dict[str, Any]:
-    """Clamp the coach's hint to 1..3, forbid regressing below an already-given hint.
+def _validate_hint(
+    raw: Any, prior_level: int, candidates: dict[int, str], expected_word: str = ""
+) -> dict[str, Any]:
+    """Constrain the coach's hint structurally — level, fallback, and answer non-disclosure.
 
-    A malformed reply (or an empty level-1/2 hint) falls back to the deterministic
-    candidate, so scaffolding never returns nothing.
+    Three guards on untrusted coach output (§8), each deterministic so the guarantee does
+    not rest on the prompt instruction the model could be talked out of:
+
+    1. The level is clamped to 1..3 and may not regress below an already-given hint.
+    2. A malformed reply (or an empty level-1/2 hint) falls back to the deterministic
+       candidate, so scaffolding never returns nothing.
+    3. A hint that names the masked word as a standalone token — what an injected recall
+       would coax — is replaced with the strongest cue that cannot leak it (the first
+       letter, then the rhyme). The deterministic candidates are answer-free by
+       construction, so substitution is fail-safe.
     """
     data = raw if isinstance(raw, dict) else {}
     try:
@@ -341,6 +351,10 @@ def _validate_hint(raw: Any, prior_level: int, candidates: dict[int, str]) -> di
         hint = candidates.get(level, "")
     if not hint:
         hint = candidates.get(level) or candidates.get(2) or candidates.get(1) or "Try the line again."
+    if expected_word and contains_word(expected_word, hint):
+        # Keep the escalation level the learner has earned, but never disclose the word:
+        # the first-letter cue is the most help we can give without naming it.
+        hint = candidates.get(2) or candidates.get(1) or "Recall the line's rhythm and rhyme."
     return {"hint_level": level, "hint": hint}
 
 
@@ -438,7 +452,7 @@ async def scaffold(ctx, node_input: Any):
             "prior_hint_level": prior,
         },
     )
-    hint = _validate_hint(raw, prior, candidates)
+    hint = _validate_hint(raw, prior, candidates, expected_word=context["word"])
     ctx.state["hint_level"] = hint["hint_level"]
     yield Event(output={"attempt": node_input, "hint": hint["hint"], "hint_level": hint["hint_level"]})
 

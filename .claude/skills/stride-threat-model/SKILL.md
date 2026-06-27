@@ -93,9 +93,12 @@ runnable proof; this skill is the map.
      instruction** — but the real guarantee is that their output is a *validated
      proposal*: `_validate_adjudication` clamps `outcome` to the legal vocabulary and
      `crutch_dependence` to the cues that were actually visible, and `_validate_hint`
-     clamps the hint level. So even a model fully swayed by an injected recall **cannot**
-     emit an out-of-vocabulary grade, fabricate a crutch tag, or escalate a hint past
-     where the deterministic facts allow.
+     clamps the hint level **and** replaces any hint that names the masked word with a
+     non-disclosing deterministic cue (the answer word is threaded in for a word-boundary
+     check; the rhyme/first-letter candidates are answer-free by construction). So even a
+     model fully swayed by an injected recall **cannot** emit an out-of-vocabulary grade,
+     fabricate a crutch tag, escalate a hint past where the deterministic facts allow, or
+     disclose the answer in a hint.
 - **Where:** `app/provenance.py`; `_validate_adjudication` / `_validate_hint` and the
   hardened instructions in `app/graph_recall.py`; the entry-point sanitizer in
   `app/security/recall_input.py`.
