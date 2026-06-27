@@ -288,12 +288,22 @@ async def start_recall(
         plugins=[ws.plugin],
     )
     interrupt_id: str | None = None
-    async for event in runner.run_async(
-        user_id=ws.learner_id, session_id=session.id, new_message=_user_message(poem_id)
-    ):
-        ids = getattr(event, "long_running_tool_ids", None)
-        if ids:
-            interrupt_id = next(iter(ids))
+    try:
+        async for event in runner.run_async(
+            user_id=ws.learner_id, session_id=session.id, new_message=_user_message(poem_id)
+        ):
+            ids = getattr(event, "long_running_tool_ids", None)
+            if ids:
+                interrupt_id = next(iter(ids))
+    except Exception as exc:
+        # A transient model/tool failure while presenting the word: surface it instead of a
+        # 500. No pause has been committed yet (ws.* are set only after this loop), so there
+        # is nothing to clear — the learner can simply try the word again.
+        return {
+            "ok": False,
+            "reason": "the tutor model is temporarily unavailable — please try again",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
     if interrupt_id is None:
         return {"ok": False, "reason": "no masked word was presented (build the course first)"}
 
@@ -352,18 +362,30 @@ async def resume_recall(ws: WebSession, recall_text: str) -> dict[str, Any]:
     )
     hint: str | None = None
     hint_level: int | None = None
-    async for event in runner.run_async(
-        user_id=ws.learner_id,
-        session_id=ws.adk_session_id,
-        new_message=_recall_resume(ws.interrupt_id, clean),
-    ):
-        ni = getattr(event, "node_info", None)
-        if ni is not None and getattr(ni, "name", None) == "memory_update":
-            out = _event_output(event)
-            inner = out.get("outcome") if isinstance(out, dict) else None
-            if isinstance(inner, dict) and "hint" in inner:
-                hint = inner.get("hint")
-                hint_level = inner.get("hint_level")
+    try:
+        async for event in runner.run_async(
+            user_id=ws.learner_id,
+            session_id=ws.adk_session_id,
+            new_message=_recall_resume(ws.interrupt_id, clean),
+        ):
+            ni = getattr(event, "node_info", None)
+            if ni is not None and getattr(ni, "name", None) == "memory_update":
+                out = _event_output(event)
+                inner = out.get("outcome") if isinstance(out, dict) else None
+                if isinstance(inner, dict) and "hint" in inner:
+                    hint = inner.get("hint")
+                    hint_level = inner.get("hint_level")
+    except Exception as exc:
+        # A transient model failure mid-grade must not wedge the attempt. Drop the consumed
+        # pause so the learner can re-present and retry THIS word cleanly (clear_pause keeps
+        # target_context for exactly that retry), and return a friendly error rather than a
+        # 500 that leaves the half-consumed FunctionResponse stuck.
+        ws.clear_pause()
+        return {
+            "ok": False,
+            "reason": "the tutor model is temporarily unavailable — please try again",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
     attempts = LearnerMemory().attempts_for(ws.learner_id, ws.poem_id)
     recorded = attempts[-1].to_dict() if attempts else {}
