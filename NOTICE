@@ -1,0 +1,32 @@
+By Heart — third-party notices
+==============================
+
+By Heart is licensed under CC BY 4.0 (see LICENSE). It builds on the third-party
+packages below, all under OSI-approved licenses that permit commercial use. The two
+copyleft entries are transitive dependencies consumed unmodified as libraries — By Heart
+does not modify or redistribute their source.
+
+Runtime dependencies (and notable transitive deps)
+--------------------------------------------------
+  google-adk          Apache-2.0          the agent-graph runtime (Google ADK 2.0)
+  google-genai        Apache-2.0          Gemini client (via google-adk)
+  mcp                 MIT                 Model Context Protocol — the Prosody MCP transport
+  pronouncing         MIT                 CMU Pronouncing Dictionary access (the MCP's stress source)
+    └─ cmudict        GPL-3.0-or-later    bundles the CMU dict data; used unmodified as a data source
+  gruut               MIT                 grapheme-to-phoneme fallback for out-of-dictionary tokens
+    ├─ num2words      LGPL-2.1            number-to-words expansion (transitive, via gruut)
+    └─ gruut-ipa      MIT
+  gruut-lang-en       MIT                 English g2p data for gruut
+  pyyaml              MIT                 corpus manifest parsing
+
+Data
+----
+  The CMU Pronouncing Dictionary that grounds the Prosody MCP is distributed under its own
+  permissive BSD-2-Clause-style license, free for any use with attribution to Carnegie
+  Mellon University.
+
+Summary
+-------
+  Every license above is OSI-approved and commercial-use-OK. The only copyleft components —
+  cmudict (GPL-3.0-or-later) and num2words (LGPL-2.1) — are transitive dependencies used as
+  unmodified libraries, not modified or redistributed by this project.

@@ -51,6 +51,17 @@ per-session, human-readable **Deletion Rationale**).
    Course  ──►  per-learner Course store
 ```
 
+```mermaid
+flowchart TD
+    start([poem id]) --> gate[provenance_gate]
+    gate -- refuse --> refuse[refuse · pipeline halts]
+    gate -- admit --> prosody[prosody_analysis]
+    prosody <-->|stress + rhyme map, anchor words| mcp[(Prosody MCP<br/>CMU dict + g2p)]
+    prosody --> plan[curriculum_plan<br/>Crutch-Removal Policy + learner history]
+    plan --> course[Course + Deletion Rationale]
+    course --> store[(per-learner Course store)]
+```
+
 **Recall Session Loop (Graph B)** — per study session, human-in-the-loop via
 `RequestInput`: `present_masked_line` (renders the masked stanza from the persisted
 Course) → learner recall → `adjudicate` (a Gemini node that grades **semantically** —
@@ -71,6 +82,17 @@ honest and the deterministic half is unit-testable without a key.
                                             [memory_update]  persist attempt + crutch tag
                                                   │
                               re-planned by Graph A next session ◄──────┘
+```
+
+```mermaid
+flowchart TD
+    present[present_masked_line] --> req{{RequestInput · learner types recall}}
+    req --> adj[adjudicate<br/>semantic grade + crutch-dependence tag]
+    adj -- advance --> adv[advance]
+    adj -- scaffold --> scaf[scaffold · minimum hint]
+    adv --> mem[memory_update<br/>persist attempt + crutch tag]
+    scaf --> mem
+    mem -. re-planned by Graph A next session .-> present
 ```
 
 **Adaptive re-planning (the money shot).** `memory_update` records each attempt to a
@@ -187,11 +209,25 @@ builds a Course (watch the Deletion Rationale on stderr); any other id is refuse
 full recall + re-plan loop seeds session state and feeds the `RequestInput` pauses, which the
 one-command runner above does for you.
 
+**The web trainer** (the live, browser-based showcase — the strongest hands-on demo):
+
+```
+uv run --package by-heart-web uvicorn by_heart_web.server:app --reload --app-dir web
+```
+
+Open the printed URL to memorize the Frost poem in your browser and **watch both ADK graphs and
+the Prosody MCP light up live** as you build the course, recall masked words, and trigger an
+adaptive re-plan. The web service is a separate, deployable uv-workspace member that drives the
+*real* graphs (never a fork) — see **[web/README.md](web/README.md)** for details.
+
 ### Corpus
 
 By Heart processes only the vetted public-domain poems on its allowlist
 ([`corpus/manifest.yaml`](corpus/manifest.yaml)); provenance and the public-domain rationale for
 each are in [`PUBLIC_DOMAIN.md`](PUBLIC_DOMAIN.md).
+
+Third-party dependency licenses (all OSI-approved and commercial-use-OK, including the two
+transitive copyleft deps `cmudict` and `num2words`) are catalogued in [`NOTICE`](NOTICE).
 
 | Poem id | Poem | Author | First published |
 |---|---|---|---|
