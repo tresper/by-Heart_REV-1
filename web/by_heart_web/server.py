@@ -126,6 +126,22 @@ async def open_session(request: Request, response: Response) -> dict[str, Any]:
     }
 
 
+@app.post("/api/session/reset")
+async def reset_session(request: Request, response: Response) -> dict[str, Any]:
+    """Start over as a CLEAN learner — so the adaptive re-plan demo is unambiguous each run.
+
+    Mints a fresh opaque learner id (ignoring the current cookie) and re-issues the cookie;
+    the front-end then reloads, so the next ``open_session`` picks up the rotated cookie and
+    the learner has an empty history — the base schedule, ready to adapt from scratch. The
+    shared append-only attempt log is never mutated (a fresh id simply has no rows) and no
+    other learner's data is touched; the old learner's records are abandoned in the
+    gitignored runtime store, not rewritten.
+    """
+    learner_id = new_learner_id()
+    response.set_cookie(_LEARNER_COOKIE, learner_id, httponly=True, samesite="lax")
+    return {"ok": True, "learner_id": learner_id, "default_poem_id": DEMO_POEM_ID}
+
+
 async def _sse(ws) -> Any:
     """Yield SSE frames: an initial hello, then each node/tool transition; heartbeats keep
     the connection alive through proxies (e.g. Cloud Run idle timeout)."""
