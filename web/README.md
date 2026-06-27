@@ -42,6 +42,46 @@ Tests (key-free smoke):
 uv run --package by-heart-web pytest web/tests -q
 ```
 
+## Deploy a public, cost-capped demo (Cloud Run)
+
+For a judge-facing public URL, the cheapest and safest path uses the **Gemini Developer API
+key** (the model defaults to `gemini-flash-latest`, which is free-tier eligible) with hard
+cost bounds from Cloud Run scaling plus an API quota cap. The key is mounted from Secret
+Manager; `.env` never enters the image (`.dockerignore` excludes it).
+
+**Cost ceiling — layered** (note: a GCP *budget* only alerts, it does **not** stop spend):
+
+- **Cloud Run** `--max-instances 1` + scale-to-zero (default `min-instances 0`) → $0 idle, bounded compute.
+- **API quota cap** — set a low *daily* request limit on the Generative Language API
+  (Console → APIs & Services → Generative Language API → Quotas). Model calls hard-stop when
+  exhausted, and the app fails soft to its key-free spine.
+- **Budget alert** — Billing → Budgets, a small threshold, as a tripwire.
+
+**Build** (no local Docker required — the Dockerfile is at `web/Dockerfile`, so use the
+bundled `cloudbuild.yaml`):
+
+```
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/REPO/by-heart-web:TAG .
+```
+
+**Deploy** (public, key from Secret Manager, Developer API — not Vertex):
+
+```
+gcloud run deploy by-heart-web \
+  --image REGION-docker.pkg.dev/PROJECT/REPO/by-heart-web:TAG \
+  --region REGION --allow-unauthenticated \
+  --max-instances 1 --concurrency 20 --cpu 1 --memory 1Gi --timeout 120 \
+  --set-secrets GOOGLE_API_KEY=byheart-gemini-key:latest \
+  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=False
+```
+
+**Tear down** after judging to return the project to its prior state:
+
+```
+gcloud run services delete by-heart-web --region REGION
+```
+
 ## Deploy to GCP (Cloud Run + Vertex AI)
 
 The app is Vertex-ready with **no code change** — the switch is environment only:
