@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-27 — Web recall endpoints: fail soft on a transient model error, never wedge the attempt
+- Decision: wrap both recall graph runs (`start_recall`, `resume_recall` in `web/by_heart_web/drive.py`) in the same try/except the build path already uses; on failure return a friendly `{"ok": False, "reason": …}` (the UI already renders it) instead of a 500. On the resume path specifically, call `ws.clear_pause()` in the except branch BEFORE returning, so a model failure mid-grade drops the consumed ADK pause and the learner can re-present and retry the same word — `clear_pause` deliberately keeps `target_context` for exactly that. Added two key-free tests (monkeypatching the Runner to raise) proving graceful handling and that the pause is cleared, not wedged.
+- Why: `gemini()` already retries 3× internally, but a still-failing call propagated out of the unguarded `async for`, returning HTTP 500 and — on resume — leaving the half-consumed FunctionResponse paused on the WebSession, so a retry hit the same stuck state. That is exactly the kind of break that ruins a judge's hands-on trial.
+- Alternatives considered: rely on gemini()'s inner retries alone — rejected: they don't cover a sustained outage and don't clear the wedged-pause state. A blanket try/finally that always clears the pause — rejected: on the success path the pause must survive until grading has read it; clearing only in the except branch (and, as before, after a successful grade) is the correct seam.
+- Concept served: Deployability / Security (robustness of the untrusted-input path).
+- Shows in: code.
+
 ## 2026-06-27 — Docs reconciled to code (claim/code register): no JoinNode, accurate Session wording
 - Decision: brought five stale doc/comment claims in line with the code rather than the reverse — README now says ADK **Session** (not "Session & Memory": `MemoryService` is not wired, the durable learner record is the local JSON store); the blueprint drops `JoinNode` from its two ADK-idiom lists; the `app/curriculum/memory.py` and `app/app.py` docstrings move to present tense (the §13.6 adjudicate/memory_update loop and the Gemini model wiring both exist now); `agents-cli-manifest.yaml` points `agent_guidance_filename` at the real `CLAUDE.md`, not a nonexistent `GEMINI.md`.
 - Why: the repo is public and the writeup cites it, so a judge can cross-check each claim against source; a present-but-false claim (a JoinNode we don't use, a "Memory" service we didn't wire, a "not yet built" loop that is built) reads as carelessness. Fixing the words is cheaper and more honest than fabricating the feature.
