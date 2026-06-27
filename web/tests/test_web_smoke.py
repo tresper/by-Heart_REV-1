@@ -121,6 +121,50 @@ def test_reveal_after_miss_discloses_only_on_request() -> None:
     assert ws.target_context is None and reveal_recall(ws)["ok"] is False
 
 
+class _BoomRunner:
+    """A Runner stand-in whose run_async raises on first iteration — simulates a transient
+    Gemini/tool outage mid-graph so the web driver's error handling is exercised key-free."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    async def run_async(self, *args, **kwargs):
+        raise RuntimeError("simulated model outage")
+        yield  # unreachable; the lexical yield makes this an async generator
+
+
+def test_resume_recall_failure_is_graceful_and_clears_the_pause(monkeypatch) -> None:
+    """A transient model failure mid-grade returns a friendly error (not a 500) and drops the
+    consumed pause, so the learner can re-present and retry rather than wedging the attempt."""
+    from by_heart_web import drive
+    from by_heart_web.sessions import create_web_session
+
+    ws = create_web_session("harden-resume")
+    ws.adk_session_id, ws.interrupt_id, ws.poem_id = "adk-1", "int-1", "frost-stopping-by-woods"
+    ws.target_context = {"word": "though", "stanza_idx": 0, "line_idx": 1, "word_idx": 6}
+
+    monkeypatch.setattr(drive, "Runner", _BoomRunner)
+    out = asyncio.run(drive.resume_recall(ws, "though"))
+
+    assert out["ok"] is False and "try again" in out["reason"].lower()
+    assert ws.adk_session_id is None and ws.interrupt_id is None   # pause cleared, not wedged
+    assert ws.target_context is not None                          # kept so the word can be retried
+
+
+def test_start_recall_failure_is_graceful(monkeypatch) -> None:
+    """A transient failure while presenting a word also returns a friendly error instead of
+    propagating a 500 — and commits no pause (nothing to clear)."""
+    from by_heart_web import drive
+    from by_heart_web.sessions import create_web_session
+
+    ws = create_web_session("harden-start")
+    monkeypatch.setattr(drive, "Runner", _BoomRunner)
+    out = asyncio.run(drive.start_recall(ws, "frost-stopping-by-woods", 0, None, 0))
+
+    assert out["ok"] is False and "try again" in out["reason"].lower()
+    assert ws.adk_session_id is None             # no pause committed on the failure path
+
+
 # --- endpoint checks (skip if httpx/TestClient unavailable) -----------------
 
 @pytest.fixture
