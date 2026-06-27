@@ -19,6 +19,13 @@
 
 ---
 
+## 2026-06-27 — Dependency-license compliance (NOTICE) + README Mermaid diagrams + web-trainer pointer
+- Decision: added a top-level `NOTICE` cataloguing every dependency license, with a README pointer to it; traced and named the only two copyleft components — `cmudict` (GPL-3.0-or-later, transitive via `pronouncing`) and `num2words` (LGPL-2.1, transitive via `gruut`) — both OSI-approved and commercial-use-OK, consumed as unmodified libraries. Also added GitHub-rendered Mermaid flowcharts of both graphs (beside the existing ASCII) and surfaced the `web/` trainer in the top-level README's run section.
+- Why: the capstone rules ask about licensing and the repo is public/CC-BY, so a judge (or the rules check) can now see at a glance that nothing is license-incompatible, with the copyleft deps named and provenance-traced rather than left implicit. The Mermaid diagrams answer the rubric's explicit "diagrams" ask, and the web-trainer pointer makes the strongest live-demo asset discoverable to a README-only reader.
+- Alternatives considered: drop `pronouncing`/`cmudict` to shed the GPL transitive dep — rejected: it grounds the Prosody MCP's stress data and is used unmodified as a library, so no copyleft obligation is triggered for this project's own CC-BY license; removing it would weaken the MCP for no compliance gain. Mermaid-only (delete the ASCII) — rejected: the ASCII stays as a plain-text fallback where Mermaid doesn't render.
+- Concept served: Documentation / Security (rules compliance) / Deployability.
+- Shows in: writeup, code (README/NOTICE).
+
 ## 2026-06-27 — Web recall endpoints: fail soft on a transient model error, never wedge the attempt
 - Decision: wrap both recall graph runs (`start_recall`, `resume_recall` in `web/by_heart_web/drive.py`) in the same try/except the build path already uses; on failure return a friendly `{"ok": False, "reason": …}` (the UI already renders it) instead of a 500. On the resume path specifically, call `ws.clear_pause()` in the except branch BEFORE returning, so a model failure mid-grade drops the consumed ADK pause and the learner can re-present and retry the same word — `clear_pause` deliberately keeps `target_context` for exactly that. Added two key-free tests (monkeypatching the Runner to raise) proving graceful handling and that the pause is cleared, not wedged.
 - Why: `gemini()` already retries 3× internally, but a still-failing call propagated out of the unguarded `async for`, returning HTTP 500 and — on resume — leaving the half-consumed FunctionResponse paused on the WebSession, so a retry hit the same stuck state. That is exactly the kind of break that ruins a judge's hands-on trial.
