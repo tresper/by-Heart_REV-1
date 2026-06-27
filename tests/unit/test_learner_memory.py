@@ -8,7 +8,12 @@ signal the LLM Architect then acts on. No model runs here, so this needs no key.
 
 from __future__ import annotations
 
-from app.curriculum.memory import Attempt, LearnerMemory, profile_from_attempts
+from app.curriculum.memory import (
+    Attempt,
+    LearnerMemory,
+    profile_from_attempts,
+    recent_evidence,
+)
 
 
 def _attempt(**kw) -> Attempt:
@@ -76,3 +81,27 @@ def test_none_dependence_is_not_a_strippable_cue() -> None:
     )
     assert profile.dominant == []  # nothing to strip
     assert profile.total_attempts == 1
+
+
+def test_recent_evidence_is_newest_first_and_bounded() -> None:
+    """The raw per-attempt view the Architect weighs: most recent first, capped, carrying
+    the outcome and position that the by-class counts flatten away."""
+    attempts = [_attempt(word=f"w{i}", session_index=i) for i in range(10)]
+    rows = recent_evidence(attempts, limit=3)
+    assert [r["word"] for r in rows] == ["w9", "w8", "w7"]  # newest-first, last 3 only
+    assert rows[0]["outcome"] == "hit" and "stanza" in rows[0] and "relied_on" in rows[0]
+
+
+def test_recent_evidence_surfaces_a_signal_the_counts_hide() -> None:
+    """The for-loop-can't-do-this case: rhyme_partner wins the raw sum, but the learner's
+    *latest* attempts are misses at metrical_regularity. The aggregate `dominant` still
+    ranks rhyme_partner first; only the raw recent view exposes the reason to deviate —
+    the evidence the planner now receives so its choice isn't forced to argmax(dominant)."""
+    history = [_attempt(crutch_dependence="rhyme_partner") for _ in range(4)] + [
+        _attempt(outcome="miss", crutch_class="metrical_regularity", crutch_dependence="none")
+        for _ in range(2)
+    ]
+    profile = profile_from_attempts("dickinson", history)
+    rows = recent_evidence(history, limit=3)
+    assert profile.dominant[0] == "rhyme_partner"  # count-dominant cue
+    assert rows[0]["crutch_class"] == "metrical_regularity" and rows[0]["outcome"] == "miss"

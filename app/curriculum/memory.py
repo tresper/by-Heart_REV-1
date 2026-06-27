@@ -218,6 +218,30 @@ def profile_from_attempts(poem_id: str, attempts: list[Attempt]) -> CrutchProfil
     )
 
 
+def recent_evidence(attempts: list[Attempt], limit: int = 8) -> list[dict[str, Any]]:
+    """The most recent attempts, newest first — the un-aggregated evidence the Architect
+    weighs that the ``by_class`` counts flatten away: recency, the near_miss-vs-miss
+    split, and where in the poem each attempt fell. Deterministic ground truth — the LLM
+    never invents these rows, it only reasons over them — capped to ``limit`` so the
+    prompt stays bounded. Ordering follows the append log (chronological), so the tail is
+    the newest activity; ``reversed`` puts the freshest struggle first.
+    """
+    rows: list[dict[str, Any]] = []
+    for a in reversed(attempts[-limit:]):
+        rows.append(
+            {
+                "session": a.session_index,
+                "stanza": a.stanza_idx,
+                "line": a.line_idx,
+                "word": a.word,
+                "crutch_class": a.crutch_class,
+                "outcome": a.outcome,
+                "relied_on": a.crutch_dependence,
+            }
+        )
+    return rows
+
+
 def _state_dir() -> Path:
     """The runtime state dir: ``$BY_HEART_STATE_DIR`` if set, else the gitignored ``var/``."""
     base = os.environ.get("BY_HEART_STATE_DIR")

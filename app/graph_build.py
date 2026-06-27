@@ -35,7 +35,12 @@ from google.adk.workflow import START, Workflow, node
 from mcp import StdioServerParameters
 from pydantic import BaseModel
 
-from app.curriculum.memory import LearnerMemory, profile_from_attempts, save_course
+from app.curriculum.memory import (
+    LearnerMemory,
+    profile_from_attempts,
+    recent_evidence,
+    save_course,
+)
 from app.curriculum.policy import plan_course
 from app.curriculum.types import AdaptationDirective, Course
 from app.models import gemini
@@ -173,26 +178,35 @@ class AdaptationProposal(BaseModel):
     target_stanza: int | None = None
 
 
-# The adaptive Architect (§4 step 4 — the money shot): a focused Gemini node, no
-# tools. Invoked from ``curriculum_plan`` with the learner's crutch-dependence
-# profile, it CHOOSES which crutch to strip next — the reasoning a ``for`` loop can't
-# do (§2). Its choice is validated and applied deterministically; it never authors masks.
+# The adaptive Architect (§4 step 4 — the money shot): a focused Gemini node, no tools.
+# Invoked from ``curriculum_plan`` with BOTH the learner's aggregate crutch-dependence
+# profile AND their raw recent per-attempt history, it WEIGHS that evidence to choose
+# which crutch to strip next — the reasoning a ``for`` loop can't do (§2), because the
+# count-ranked dominant cue is deliberately NOT the answer. Its choice is validated and
+# applied deterministically; it never authors masks.
 _adaptive_planner = Agent(
     name="adaptive_planner",
     model=gemini(),
     instruction=(
         "You are the curriculum Architect adapting a poem's memorization schedule to "
-        "ONE learner. You are given their crutch-dependence profile: per crutch class, "
-        "`relied_on` (times they recalled a word correctly only because that cue was "
-        "still present) and `missed_at` (times they failed at that cue's words), plus "
-        "`dominant` (classes ranked by how much they lean on each). Choose the ONE "
-        "crutch class to strip next: the support this learner most leans on, so recall "
-        "becomes less aided. Prefer the dominant class; for a miss-heavy pattern target "
-        "where they repeatedly fail — do NOT merely re-queue exact misses. Return JSON "
-        "matching the schema: `prioritized_crutch` (exactly one of rhyme_partner, "
-        "metrical_regularity, syntactic_momentum), a short `diagnosis` naming the "
-        "pattern and why you strip that cue, and `target_stanza` (an integer) only if "
-        "the pattern is confined to one stanza, else null."
+        "ONE learner. Decide the ONE crutch class to strip next so their recall becomes "
+        "less aided — the judgment this system exists to make. You get two views of "
+        "their history. The AGGREGATE `by_class` gives, per crutch class, `relied_on` "
+        "(correct recalls that leaned on that still-visible cue) and `missed_at` "
+        "(failures at that cue's words); `dominant` ranks the classes by the raw sum of "
+        "the two. The RAW `recent_attempts` list (newest first) gives each recent "
+        "attempt's `outcome` (hit/near_miss/variant/miss), the word's `crutch_class`, "
+        "the cue the recall actually `relied_on`, and its position (`stanza`/`line`). "
+        "WEIGH these — do not simply echo `dominant`: a cue the learner has only "
+        "recently begun to lean on or fail at matters more than one that ranks high "
+        "merely on stale early-session history; a run of outright `miss`es points "
+        "somewhere different from a run of `near_miss`es; a pattern confined to one "
+        "stanza should target that stanza. Pick the cue whose removal most moves THIS "
+        "learner toward unaided recall. Return JSON matching the schema: "
+        "`prioritized_crutch` (exactly one of rhyme_partner, metrical_regularity, "
+        "syntactic_momentum), a short `diagnosis` naming the pattern you saw and why you "
+        "strip that cue, and `target_stanza` (an integer) only if the pattern is "
+        "confined to one stanza, else null."
     ),
     output_schema=AdaptationProposal,
 )
@@ -321,12 +335,16 @@ async def curriculum_plan(ctx, node_input: Any):
     # Layer 2: the adaptive overlay (§13.5). Only when the learner's history shows a
     # lean signal do we ask Gemini which crutch to strip sooner; validate, then re-plan.
     learner_id = _resolve_learner_id(ctx)
-    profile = profile_from_attempts(
-        poem_id, LearnerMemory().attempts_for(learner_id, poem_id)
-    )
+    attempts = LearnerMemory().attempts_for(learner_id, poem_id)
+    profile = profile_from_attempts(poem_id, attempts)
     directive: AdaptationDirective | None = None
     if profile.dominant:
-        proposal = await ctx.run_node(_adaptive_planner, node_input=profile.to_dict())
+        # Hand the Architect BOTH views: the aggregate profile AND the raw recent
+        # attempts. The choice must weigh recency, the miss pattern, and position — not
+        # merely take the count-ranked `dominant` — which is the judgment a for-loop
+        # can't make. The pick is still validated and applied deterministically.
+        planner_input = {**profile.to_dict(), "recent_attempts": recent_evidence(attempts)}
+        proposal = await ctx.run_node(_adaptive_planner, node_input=planner_input)
         directive = _validate_directive(proposal, present)
     course = (
         plan_course(structural_map, anchors, poem_id, adaptation=directive)
