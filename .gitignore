@@ -273,3 +273,8 @@ MEMO_TO_SELF.md
 # Local drafts of the Kaggle submission writeup — working copies, not published.
 Kaggle_Writeup_Draft*.txt
 Kaggle_Writeup_Draft*.md
+
+# Internal working docs kept out of the published repo (untracked via `git rm --cached`;
+# local copies retained). Strategy blueprint + video shot-list — not judge deliverables.
+docs/By_Heart_Capstone_Blueprint_Second_Draft.md
+DEMO_SCRIPT.md

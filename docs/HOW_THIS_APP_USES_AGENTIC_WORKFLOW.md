@@ -165,5 +165,3 @@ graph to wire them together, and state to make it adapt.
 
 - [README](../README.md) — the reference architecture, setup, and run-the-demo steps.
 - [`DECISIONS.md`](../DECISIONS.md) — the dated design-decision log (why each choice was made).
-- [`docs/By_Heart_Capstone_Blueprint_Second_Draft.md`](By_Heart_Capstone_Blueprint_Second_Draft.md)
-  — the authoritative project spec.

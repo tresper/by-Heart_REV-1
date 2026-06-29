@@ -2,7 +2,7 @@
 
 By Heart is an agentic poetry-memorization tutor: it turns a vetted public-domain poem into a personalized, prosody-aware memorization course using a multi-agent **Google ADK 2.0** system. This is a Kaggle capstone submission (*Agents for Good* track).
 
-**Before planning any build phase, read `docs/By_Heart_Capstone_Blueprint_Second_Draft.md` — it is the authoritative spec.** Build in the priority order in its §13: one working end-to-end loop before breadth.
+**Before planning any build phase, read the Capstone Blueprint (`docs/By_Heart_Capstone_Blueprint_Second_Draft.md`, a local working doc kept out of the published repo) — it is the authoritative spec.** Build in the priority order in its §13: one working end-to-end loop before breadth.
 
 ## Non-negotiables
 - **Secrets:** never commit secrets. The Gemini API key lives only in `.env` (gitignored). Ship `.env.example` with placeholders. No keys, tokens, or passwords in any tracked file.
