@@ -128,14 +128,21 @@
 </head>
 <body>
 <header>
-  <h1>By Heart — memorize Frost, watch the agents work</h1>
+  <h1>By Heart — memorize a poem, watch the agents work</h1>
   <p>The same two ADK&nbsp;2.0 graphs and the Prosody MCP that power By Heart, driven live as you recall the poem.</p>
 </header>
 
 <div class="wrap">
   <!-- ============ TRAINER ============ -->
   <section class="panel">
-    <h2>Trainer · “Stopping by Woods on a Snowy Evening” — Robert Frost (1923)</h2>
+    <h2 id="trainer-title">Trainer</h2>
+
+    <div class="row" style="margin-bottom:12px;">
+      <label class="small muted">Poem
+        <select id="poem-pick"></select>
+      </label>
+      <span class="small muted">— public-domain only; the provenance gate refuses anything off this allowlist.</span>
+    </div>
 
     <div class="row">
       <button id="btn-build">Build my course</button>

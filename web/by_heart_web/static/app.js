@@ -47,6 +47,7 @@ const SUBSTEP_PARENT = { "deletion_rationale": "curriculum_plan", "adaptive_plan
 // ---- session/app state ----
 let WSID = null;
 let POEM_ID = "frost-stopping-by-woods";
+let POEMS = [];                  // the selectable corpus (the public-domain allowlist)
 let TOPO = { build: null, recall: null };
 let currentSessionIndex = 0;
 let currentTargets = [];
@@ -69,12 +70,71 @@ async function boot() {
   WSID = sess.web_session_id;
   POEM_ID = sess.default_poem_id || POEM_ID;
 
-  TOPO = await fetch("/api/graphs").then((r) => r.json());
+  const [topo, poemsData] = await Promise.all([
+    fetch("/api/graphs").then((r) => r.json()),
+    fetch("/api/poems").then((r) => r.json()),
+  ]);
+  TOPO = topo;
   drawGraph("build", TOPO.build);
   drawGraph("recall", TOPO.recall);
 
+  // Honor a poem chosen before a reset-reload (kept in the URL hash). Only an id that
+  // is actually on the allowlist is accepted — the picker never writes any other.
+  const hashed = (location.hash.match(/poem=([\w-]+)/) || [])[1];
+  if (hashed && (poemsData.poems || []).some((p) => p.id === hashed)) POEM_ID = hashed;
+  populatePoems(poemsData.poems);
+
   openStream(sess.stream_url);
   wireButtons();
+}
+
+// Fill the poem picker from the allowlist and reflect the current selection + title.
+function populatePoems(poems) {
+  POEMS = poems || [];
+  const pick = $("poem-pick");
+  pick.innerHTML = "";
+  POEMS.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    const yr = p.first_published ? ` (${p.first_published})` : "";
+    opt.textContent = `${p.title} — ${p.author}${yr}`;
+    pick.appendChild(opt);
+  });
+  pick.value = POEM_ID;
+  updateTrainerTitle();
+}
+
+function updateTrainerTitle() {
+  const p = POEMS.find((x) => x.id === POEM_ID);
+  const yr = p && p.first_published ? ` (${p.first_published})` : "";
+  $("trainer-title").textContent = p ? `Trainer · “${p.title}” — ${p.author}${yr}` : "Trainer";
+}
+
+// Switch the active poem: keep it across a reset-reload (URL hash) and clear the
+// previous poem's view so a stale course/recall never bleeds across a switch. The
+// per-poem course + attempts are keyed by (poem_id, learner) server-side, so nothing
+// here touches another poem's saved state — only this browser's transient view.
+function selectPoem(poemId) {
+  if (poemId === POEM_ID) return;
+  POEM_ID = poemId;
+  history.replaceState(null, "", `#poem=${poemId}`);
+  updateTrainerTitle();
+
+  hasBuilt = false;
+  prevFirstStrip = null;
+  window.__targets = {};
+  currentTargets = []; currentTargetIdx = 0; solvedWords = {}; currentHintLevel = 0;
+  $("course").classList.add("hidden");
+  $("recall").classList.add("hidden");
+  $("btn-replan").classList.add("hidden");
+  $("build-notice").classList.add("hidden");
+  $("build-status").textContent = "";
+  $("rationale-list").innerHTML = "";
+  $("gt-status-build").textContent = "";
+  $("log").innerHTML = "";
+  clearGraph("build");
+  clearGraph("recall");
+  setGraphCollapsed("build", false);
 }
 
 function openStream(url) {
@@ -540,6 +600,7 @@ function nextWord() {
 // Wiring
 // ---------------------------------------------------------------------------
 function wireButtons() {
+  $("poem-pick").addEventListener("change", (e) => selectPoem(e.target.value));
   $("btn-build").addEventListener("click", build);
   $("btn-replan").addEventListener("click", build);
   $("btn-reset").addEventListener("click", resetProgress);

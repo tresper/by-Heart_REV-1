@@ -40,3 +40,30 @@ poems:
     text_file: texts/whitman-o-captain-my-captain.txt
     sha256: 0b23da7e25a2aa335a2dc986ae446166c1a7aee031888293f1af2dc58b5e68f8
     notes: "First published in Sequel to Drum-Taps (1865); collected in Leaves of Grass. Body-only; deathbed-edition text."
+
+  - id: lazarus-the-new-colossus
+    title: "The New Colossus"
+    author: "Emma Lazarus"
+    first_published: 1883
+    source_url: "https://en.wikisource.org/wiki/The_New_Colossus"
+    rights: public-domain-US
+    text_file: texts/lazarus-the-new-colossus.txt
+    sha256: 1812375b476fb06c2f04eaf29463f6fed133262c0fd91998e2c654960711f95a
+    notes: >-
+      Petrarchan sonnet written in 1883 for the Bartholdi Pedestal Fund (the
+      campaign to fund the Statue of Liberty's pedestal); the closing lines were
+      cast on a bronze plaque mounted inside the statue's base in 1903. Body-only;
+      octave + sestet layout. Public domain in the US (first published 1883).
+
+  - id: kilmer-trees
+    title: "Trees"
+    author: "Joyce Kilmer"
+    first_published: 1913
+    source_url: "https://en.wikisource.org/wiki/Trees_(Kilmer)"
+    rights: public-domain-US
+    text_file: texts/kilmer-trees.txt
+    sha256: 52e901bb097ba093b24fa2062ea3573c0cdcf94ca5cecdcf5bfd0ebb640f4924
+    notes: >-
+      First published in Poetry magazine (August 1913); collected in Trees and
+      Other Poems (1914). Body-only; six rhymed couplets. Public domain in the US
+      (first published 1913).

@@ -212,9 +212,9 @@ one-command runner above does for you.
 **The web trainer** (the live, browser-based showcase — the strongest hands-on demo):
 
 > **▶ Live demo (no setup, no key needed): <https://by-heart-web-596572954271.us-east1.run.app>**
-> — build a course, recall masked words, and trigger the adaptive re-plan with both ADK graphs
-> and the Prosody MCP lighting up live. Public Cloud Run instance; the first hit after idle may
-> cold-start for ~20s.
+> — pick any of five public-domain poems, build a course, recall masked words, and trigger the
+> adaptive re-plan with both ADK graphs and the Prosody MCP lighting up live. Public Cloud Run
+> instance; the first hit after idle may cold-start for ~20s.
 
 Or run it locally:
 
@@ -222,9 +222,9 @@ Or run it locally:
 uv run --package by-heart-web uvicorn by_heart_web.server:app --reload --app-dir web
 ```
 
-Open the printed URL to memorize the Frost poem in your browser and **watch both ADK graphs and
-the Prosody MCP light up live** as you build the course, recall masked words, and trigger an
-adaptive re-plan. The web service is a separate, deployable uv-workspace member that drives the
+Open the printed URL to memorize any poem from the corpus — pick one from the selector — in your
+browser and **watch both ADK graphs and the Prosody MCP light up live** as you build the course,
+recall masked words, and trigger an adaptive re-plan. The web service is a separate, deployable uv-workspace member that drives the
 *real* graphs (never a fork) — see **[web/README.md](web/README.md)** for details.
 
 ### Corpus
@@ -240,4 +240,6 @@ transitive copyleft deps `cmudict` and `num2words`) are catalogued in [`NOTICE`]
 |---|---|---|---|
 | `dickinson-because-i-could-not-stop-for-death` | "Because I could not stop for Death" | Emily Dickinson | 1890 |
 | `frost-stopping-by-woods` | "Stopping by Woods on a Snowy Evening" | Robert Frost | 1923 |
+| `kilmer-trees` | "Trees" | Joyce Kilmer | 1913 |
+| `lazarus-the-new-colossus` | "The New Colossus" | Emma Lazarus | 1883 |
 | `whitman-o-captain-my-captain` | "O Captain! My Captain!" | Walt Whitman | 1865 |

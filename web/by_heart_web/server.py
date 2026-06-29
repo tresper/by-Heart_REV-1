@@ -108,6 +108,16 @@ async def graphs() -> dict[str, Any]:
     }
 
 
+@app.get("/api/poems")
+async def poems() -> dict[str, Any]:
+    """The selectable corpus for the poem picker (key-free).
+
+    The list IS the public-domain allowlist (``corpus/manifest.yaml``); the picker
+    offers nothing else, and every build still passes through ``provenance_gate`` —
+    so there is no paste-your-own-poem path, by design."""
+    return {"poems": drive.list_poems(), "default_poem_id": DEMO_POEM_ID}
+
+
 # ---------------------------------------------------------------------------
 # Web session lifecycle + the SSE viz stream.
 # ---------------------------------------------------------------------------

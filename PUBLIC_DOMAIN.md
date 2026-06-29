@@ -30,6 +30,8 @@ published in 1923).
 | "Stopping by Woods on a Snowy Evening" | Robert Frost | 1923 | [Gutenberg 58611](https://www.gutenberg.org/ebooks/58611) | US work first published 1923 (in the collection *New Hampshire*), ≤ 1930 → PD. |
 | "Because I could not stop for Death" | Emily Dickinson | 1890 | [Gutenberg 12242](https://www.gutenberg.org/ebooks/12242) | Written c. 1863; first published (as "The Chariot") in *Poems by Emily Dickinson*, ed. Higginson & Todd, 1890, ≤ 1930 → PD. |
 | "O Captain! My Captain!" | Walt Whitman | 1865 | [Gutenberg 1322](https://www.gutenberg.org/ebooks/1322) | First published 1865 in *Sequel to Drum-Taps*; later collected in *Leaves of Grass*, ≤ 1930 → PD. |
+| "The New Colossus" | Emma Lazarus | 1883 | [Wikisource](https://en.wikisource.org/wiki/The_New_Colossus) | US work first published 1883 (written for the Bartholdi Pedestal Fund; later cast on a plaque inside the Statue of Liberty), ≤ 1930 → PD. |
+| "Trees" | Joyce Kilmer | 1913 | [Wikisource](https://en.wikisource.org/wiki/Trees_(Kilmer)) | US work first published 1913 in *Poetry* magazine; collected in *Trees and Other Poems* (1914), ≤ 1930 → PD. |
 
 Each text in [`corpus/texts/`](corpus/texts/) is a body-only transcription of the cited
 public-domain edition (titles omitted; see each manifest entry's `notes` for edition details).
