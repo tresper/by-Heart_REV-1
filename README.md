@@ -4,6 +4,10 @@
 memorization course — doing autonomously, for any poem and any learner, what the New York
 Times Poetry Challenge did by hand for a single one.**
 
+> **Kaggle "Agents for Good" submission writeup:** [`KAGGLE_WRITEUP.md`](KAGGLE_WRITEUP.md) — the
+> full project narrative in one place: the problem, the two-graph architecture, the security
+> posture, and why it's "for good."
+
 ## The problem, and why it needs agents
 
 The NYT Poetry Challenge (2025) proved that millions of people want to memorize poems — but it
