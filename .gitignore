@@ -269,3 +269,7 @@ Capstone_Project_Hackathon_Submission_Requirements.md
 
 # Local private working note — never published.
 MEMO_TO_SELF.md
+
+# Local drafts of the Kaggle submission writeup — working copies, not published.
+Kaggle_Writeup_Draft*.txt
+Kaggle_Writeup_Draft*.md
