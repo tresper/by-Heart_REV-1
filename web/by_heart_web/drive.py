@@ -466,3 +466,21 @@ def provenance_check(poem_id: str) -> dict[str, Any]:
     """Key-free gate check (used by the refusal demo + the smoke test)."""
     result = evaluate_provenance(poem_id, manifest=load_manifest())
     return {"poem_id": poem_id, "admitted": result.admitted, "reason": result.reason}
+
+
+def list_poems() -> list[dict[str, Any]]:
+    """The selectable corpus — every poem on the public-domain allowlist.
+
+    Drawn from the *same* manifest the provenance gate enforces, so the picker is
+    closed to allowlisted poems by construction: there is no open-text path, and a
+    build of any listed id still passes through ``provenance_gate``. Manifest order
+    is preserved (the seed Frost poem stays first, matching ``DEMO_POEM_ID``)."""
+    return [
+        {
+            "id": pid,
+            "title": entry.get("title", pid),
+            "author": entry.get("author", ""),
+            "first_published": entry.get("first_published"),
+        }
+        for pid, entry in load_manifest().items()
+    ]

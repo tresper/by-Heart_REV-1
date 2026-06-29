@@ -46,6 +46,21 @@ def test_topology_matches_the_real_graphs() -> None:
     )
 
 
+def test_list_poems_is_the_provenance_allowlist() -> None:
+    """The picker's options come straight from the provenance manifest, so it can only ever
+    offer allowlisted public-domain poems (no paste-your-own path). The seed Frost poem stays
+    first — it is the default the page boots on — and every option is fully labeled and <=1930."""
+    from by_heart_web.drive import list_poems
+
+    poems = list_poems()
+    ids = [p["id"] for p in poems]
+    assert ids[0] == "frost-stopping-by-woods"                       # the default stays first
+    assert {"lazarus-the-new-colossus", "kilmer-trees"} <= set(ids)  # the expanded corpus is offered
+    for p in poems:
+        assert p["title"] and p["author"]
+        assert isinstance(p["first_published"], int) and p["first_published"] <= 1930
+
+
 def _fake_event(name, *, path="recall_session@1/x@1", route=None, waiting=False):
     return types.SimpleNamespace(
         node_info=types.SimpleNamespace(name=name, path=path),
@@ -255,6 +270,17 @@ def test_graphs_endpoint(client) -> None:
     assert set(body["build"]["nodes"]) >= {"provenance_gate", "curriculum_plan"}
     assert set(body["recall"]["nodes"]) >= {"present_masked_line", "adjudicate", "memory_update"}
     assert body["default_poem_id"] == "frost-stopping-by-woods"
+
+
+def test_poems_endpoint_lists_the_allowlist(client) -> None:
+    """The picker is fed by ``/api/poems``: the full allowlist, default poem flagged, Frost
+    first, and the two expansion poems present so a judge can switch poems live."""
+    body = client.get("/api/poems").json()
+    ids = [p["id"] for p in body["poems"]]
+    assert body["default_poem_id"] == "frost-stopping-by-woods"
+    assert ids[0] == "frost-stopping-by-woods"
+    assert {"lazarus-the-new-colossus", "kilmer-trees"} <= set(ids)
+    assert all(p["title"] and p["author"] for p in body["poems"])
 
 
 def test_sse_generator_yields_hello_then_transition() -> None:
