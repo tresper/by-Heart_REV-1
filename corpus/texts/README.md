@@ -8,6 +8,8 @@ text stored here as a UTF-8 `.txt` file, keyed by the manifest `id`:
 | `frost-stopping-by-woods` | `frost-stopping-by-woods.txt` |
 | `dickinson-because-i-could-not-stop-for-death` | `dickinson-because-i-could-not-stop-for-death.txt` |
 | `whitman-o-captain-my-captain` | `whitman-o-captain-my-captain.txt` |
+| `lazarus-the-new-colossus` | `lazarus-the-new-colossus.txt` |
+| `kilmer-trees` | `kilmer-trees.txt` |
 
 ## Integrity contract
 The manifest records each file's `text_file` (relative to `corpus/`) and its
