@@ -282,5 +282,12 @@ DEMO_SCRIPT.md
 # Local video-demo script — working doc, not part of the published repo.
 Video_Script.md
 
+# VS Code workspace file — local editor config, not part of the published repo.
+vibe.code-workspace
+
+# Local video script drafts — working docs, not part of the published repo.
+Video_Script_Draft.md
+Vido_Script_Draft.pdf
+
 # Local video thumbnail — working asset, not part of the published repo.
 thumbnail_560x280.png
