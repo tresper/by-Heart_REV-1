@@ -411,7 +411,7 @@ async def adjudicate(ctx, node_input: Any):
     context = ctx.state.get("target_context")
     if not context:
         # Nothing was presented (cold start) — grade nothing, fail safe to scaffold.
-        yield Event(output={"todo": "no target presented", "recall": recall}, route="scaffold")
+        yield Event(output={"status": "no target presented", "recall": recall}, route="scaffold")
         return
 
     raw = await ctx.run_node(

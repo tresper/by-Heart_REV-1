@@ -1,8 +1,9 @@
-"""memory_update's attempt extraction (§13.5) — tolerant of the §13.6 adjudicate stub.
+"""memory_update's attempt extraction (§13.5) — the Graph B → Learner Memory seam.
 
 ``_attempt_from`` is the seam between Graph B and the Learner Memory store: a
-well-formed adjudication becomes a recorded ``Attempt``; the current stub payload
-(no word/position) records nothing, so a stub run never poisons the store with noise.
+well-formed adjudication becomes a recorded ``Attempt``; a payload with no
+word/position (the cold-start path, where ``adjudicate`` had no target to grade)
+records nothing, so a run with nothing presented never poisons the store with noise.
 Pure (no I/O), so it asserts the contract without touching the JSON file.
 """
 
@@ -17,8 +18,9 @@ def _ctx(**state) -> SimpleNamespace:
     return SimpleNamespace(state=state)
 
 
-def test_stub_payload_records_nothing() -> None:
-    payload = {"todo": "advance not implemented", "adjudication": {"recall": "..."}}
+def test_cold_start_payload_records_nothing() -> None:
+    # The exact payload ``adjudicate`` emits when nothing was presented to grade.
+    payload = {"status": "no target presented", "recall": "..."}
     assert _attempt_from(_ctx(poem_id="dickinson"), payload) is None
 
 
