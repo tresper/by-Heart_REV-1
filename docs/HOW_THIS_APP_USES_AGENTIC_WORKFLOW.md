@@ -74,10 +74,16 @@ START → provenance_gate ──admit──→ prosody_analysis → curriculum_p
   The MCP exposes tools like `pronounce`, `scan_line`, and `analyze_poem`; it speaks only JSON-RPC
   on stdout (logs go to stderr) so the protocol stream stays clean. The node combines those hard
   phonetic facts with Gemini's reading of the poem's structure.
-- **`curriculum_plan`** is a Gemini node that does the genuinely agentic work: given the prosodic
-  map, it decides the order in which to strip the learner's "crutches" and writes a short,
-  human-readable **Deletion Rationale** explaining why. This rationale is the *visible reasoning
-  artifact* — the thing that proves a model made a judgment rather than a loop counting to N.
+- **`curriculum_plan`** is where the genuinely agentic judgment lives — but notice *where*,
+  exactly. The masking *schedule itself* is deterministic: a fixed policy strips crutches rung by
+  rung (a rhyme word while its partner still shows, then both rhyme partners, then the anchor
+  content words), because a schedule is precisely the kind of thing a `for` loop *should* own. What
+  Gemini decides are the parts a loop can't: for a **returning** learner, *which* crutch to strip
+  sooner given their recall history — a small "Architect" model call whose choice is validated
+  against the poem before the deterministic policy applies it — and the short, human-readable
+  **Deletion Rationale** that explains each session's plan in prose. That rationale is the *visible
+  reasoning artifact* — the thing that proves a model made a judgment rather than a loop counting
+  to N.
 
 The pedagogy worth noting: instead of hiding a fixed fraction of words, By Heart removes the
 specific *prosodic crutch* a learner is leaning on — the visible rhyme partner, the regular meter,
@@ -122,13 +128,19 @@ crutch tag *only* if that cue was actually still visible for this word, and disc
 non-success — you can't have leaned on a cue that wasn't there. The `scaffold` node is the same:
 the model picks a hint level, but plain code clamps it to 1–3 and forbids it from regressing. This
 split — a probabilistic core wrapped in a deterministic, unit-testable shell — is how you get the
-model's judgment without inheriting its unreliability.
+model's judgment without inheriting its unreliability. The same boundary runs the other way, around
+*input*: the learner's typed recall is the one piece of untrusted text in the system, so it's
+sanitized at a single choke point and every grading prompt treats it strictly as data to be judged
+— never as instructions to follow — a deliberate guard against prompt injection.
 
 **2. The adaptive feedback loop = emergent personalization.** Because every attempt's crutch tag
-lands in memory, the *next* run of the Build Pipeline can read that history and strip a *different*
-crutch earlier for a learner who's over-relying on it. No node "knows" the learner; the
-personalization **emerges** from one graph writing state that another graph reads. That
-data-coupling-through-shared-state is the multi-agent design at work.
+lands in memory, the *next* run of the Build Pipeline reads that history and strips a *different*
+crutch earlier for a learner who's over-relying on it. Two things combine here. No graph
+*remembers* the learner in code — one graph writes state that another reads — and, on that shared
+history, the "Architect" model call inside `curriculum_plan` makes the actual judgment of which
+crutch to pull next (validated against the poem before it's applied). The personalization
+**emerges** from that data-coupling-through-shared-state, sharpened by one model decision — the
+multi-agent design at work.
 
 ## The serving layer: driving the graphs live
 
